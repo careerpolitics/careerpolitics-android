@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "228882341669",
+    "project_id": "careerpolitics-notification",
+    "storage_bucket": "careerpolitics-notification.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:228882341669:android:63bec77cb38f46c02b84cc",
+        "android_client_info": {
+          "package_name": "com.murari.careerpolitics"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsPLznoMhlPK110uysLMwNArXt6BZPLp4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,85 @@
+[versions]
+agp = "8.11.1"
+kotlin = "2.0.21"
+coreKtx = "1.16.0"
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+lifecycleRuntimeKtx = "2.9.2"
+activityCompose = "1.10.1"
+composeBom = "2024.09.00"
+appcompat = "1.6.1"
+browser = "1.7.0"
+constraintlayout = "2.1.4"
+databinding = "8.1.0"
+lifecycle = "2.6.2"
+multidex = "2.0.1"
+espresso = "3.6.1"
+test_runner = "1.5.2"
+aapt2 = "8.1.0"
+lint_gradle = "8.1.0"
+exoplayer = "2.19.1"
+gson = "2.10.1"
+firebase_messaging = "23.4.1"
+push_notifications_android = "1.10.0"
+buildsrclibs_plugin = "1.0.0"
+detekt_plugin = "1.23.1"
+eventbus = "3.3.1"
+kotlinx_coroutines = "1.8.0"
+googleServices = "4.4.3"
+
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+databinding-adapters = { group = "androidx.databinding", name = "databinding-adapters", version.ref = "databinding" }
+databinding-common = { group = "androidx.databinding", name = "databinding-common", version.ref = "databinding" }
+databinding-compiler = { group = "androidx.databinding", name = "databinding-compiler", version.ref = "databinding" }
+databinding-runtime = { group = "androidx.databinding", name = "databinding-runtime", version.ref = "databinding" }
+lifecycle-extensions = { group = "androidx.lifecycle", name = "lifecycle-extensions", version.ref = "lifecycle" }
+lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel", version.ref = "lifecycle" }
+multidex = { group = "androidx.multidex", name = "multidex", version.ref = "multidex" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "test_runner" }
+aapt2 = { group = "com.android.tools.build", name = "aapt2", version.ref = "aapt2" }
+agp = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
+lint-gradle = { group = "com.android.tools.lint", name = "lint-gradle", version.ref = "lint_gradle" }
+exoplayer-core = { group = "com.google.android.exoplayer", name = "exoplayer-core", version.ref = "exoplayer" }
+exoplayer-hls = { group = "com.google.android.exoplayer", name = "exoplayer-hls", version.ref = "exoplayer" }
+exoplayer-ui = { group = "com.google.android.exoplayer", name = "exoplayer-ui", version.ref = "exoplayer" }
+extension-mediasession = { group = "com.google.android.exoplayer", name = "extension-mediasession", version.ref = "exoplayer" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebase_messaging" }
+push-notifications-android = { group = "com.pusher", name = "push-notifications-android", version.ref = "push_notifications_android" }
+de-fayard-buildsrclibs-gradle-plugin = { group = "de.fayard.buildSrcLibs", name = "de.fayard.buildSrcLibs.gradle.plugin", version.ref = "buildsrclibs_plugin" }
+io-gitlab-arturbosch-detekt-gradle-plugin = { group = "io.gitlab.arturbosch.detekt", name = "io.gitlab.arturbosch.detekt.gradle.plugin", version.ref = "detekt_plugin" }
+eventbus = { group = "org.greenrobot", name = "eventbus", version.ref = "eventbus" }
+eventbus-annotation-processor = { group = "org.greenrobot", name = "eventbus-annotation-processor", version.ref = "eventbus" }
+kotlin-android-extensions = { group = "org.jetbrains.kotlin", name = "kotlin-android-extensions", version.ref = "kotlin" }
+kotlin-android-extensions-runtime = { group = "org.jetbrains.kotlin", name = "kotlin-android-extensions-runtime", version.ref = "kotlin" }
+kotlin-annotation-processing-gradle = { group = "org.jetbrains.kotlin", name = "kotlin-annotation-processing-gradle", version.ref = "kotlin" }
+kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-stdlib-jdk8 = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx_coroutines" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx_coroutines" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+
