@@ -2,14 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.murari.careerpolitics">
 
-    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-
-    <!-- Minimum SDK for POST_NOTIFICATIONS -->
-    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
 
     <application
         android:name=".activities.StarterApplication"
@@ -26,13 +22,11 @@
         <activity
             android:name=".activities.MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait">
+            android:theme="@style/Theme.DevAndroid.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <!-- Deep Linking -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -43,18 +37,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Video Player Activity -->
         <activity
             android:name=".activities.VideoPlayerActivity"
             android:configChanges="orientation|screenSize|layoutDirection"
             android:exported="false" />
 
-        <!-- Audio playback service -->
         <service
             android:name=".media.AudioService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
-
     </application>
-
 </manifest>

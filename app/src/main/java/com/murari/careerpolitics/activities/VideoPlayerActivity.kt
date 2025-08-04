@@ -47,7 +47,7 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
             .createMediaSource(MediaItem.fromUri(url.toUri()))
 
         player = ExoPlayer.Builder(this).build().also { exoPlayer ->
-            binding.playerView.player = exoPlayer
+            binding?.playerView?.player = exoPlayer
             exoPlayer.setMediaSource(mediaSource)
             exoPlayer.prepare()
             exoPlayer.seekTo(seekToSeconds * 1000)
@@ -57,7 +57,7 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
 
     private fun startTimer() {
         timer = Timer().apply {
-            scheduleAtFixedRate(object : TimerTask() {
+            schedule(object : TimerTask() {
                 override fun run() {
                     player?.currentPosition?.let {
                         val currentSeconds = (it / 1000).toString()
