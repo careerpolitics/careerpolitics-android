@@ -93,6 +93,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
 
+    //splash
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.material)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
