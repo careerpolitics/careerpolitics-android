@@ -6,27 +6,28 @@ import android.util.Log
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import com.google.gson.Gson
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
 import com.murari.careerpolitics.activities.VideoPlayerActivity
 import com.murari.careerpolitics.events.VideoPlayerPauseEvent
 import com.murari.careerpolitics.events.VideoPlayerTickEvent
 import com.murari.careerpolitics.media.AudioService
 import com.murari.careerpolitics.webclients.CustomWebViewClient
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import java.util.*
 
 class AndroidWebViewBridge(private val context: Context) {
 
     var webViewClient: CustomWebViewClient? = null
-    private var timer: Timer? = null
 
-    // audioService is initialized when onServiceConnected is executed after/during binding is done
+    private var timer: Timer? = null
     private var audioService: AudioService? = null
+
+    private val gson = Gson()
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as AudioService.AudioServiceBinder
-            audioService = binder.service
+            audioService = (service as? AudioService.AudioServiceBinder)?.service
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -34,134 +35,150 @@ class AndroidWebViewBridge(private val context: Context) {
         }
     }
 
+    // Logging from JavaScript
     @JavascriptInterface
-    fun logError(errorTag: String, errorMessage: String) {
-        Log.e(errorTag, errorMessage)
+    fun logError(tag: String, message: String) {
+        Log.e(tag, message)
     }
 
+    // Copy text to clipboard
     @JavascriptInterface
-    fun copyToClipboard(copyText: String) {
+    fun copyToClipboard(text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        val clipData = ClipData.newPlainText("DEV Community", copyText)
-        clipboard?.setPrimaryClip(clipData)
+        clipboard?.setPrimaryClip(ClipData.newPlainText("CareerPolitics", text))
     }
 
+    // Show toast from JS
     @JavascriptInterface
     fun showToast(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
+    // Share plain text via Android share sheet
+    @JavascriptInterface
+    fun shareText(text: String) {
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            putExtra(Intent.EXTRA_TEXT, text)
+            type = "text/plain"
+        }
+        context.startActivity(Intent.createChooser(shareIntent, null))
+    }
+
+    // Podcast control from WebView
     @JavascriptInterface
     fun podcastMessage(message: String) {
-        var map: Map<String, String> = HashMap()
-        map = Gson().fromJson(message, map.javaClass)
-        when(map["action"]) {
-            "load" -> loadPodcast(map["url"])
-            "play" -> audioService?.play(map["url"], map["seconds"])
-            "pause" -> audioService?.pause()
-            "seek" -> audioService?.seekTo(map["seconds"])
-            "rate" -> audioService?.rate(map["rate"])
-            "muted" -> audioService?.mute(map["muted"])
-            "volume" -> audioService?.volume(map["volume"])
-            "metadata" -> audioService?.loadMetadata(map["episodeName"], map["podcastName"], map["imageUrl"])
+        val map = try {
+            gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
+        } catch (e: Exception) {
+            logError("Podcast", "JSON parse error: ${e.localizedMessage}")
+            return
+        }
+
+        when (map["action"]) {
+            "load"      -> loadPodcast(map["url"])
+            "play"      -> audioService?.play(map["url"], map["seconds"])
+            "pause"     -> audioService?.pause()
+            "seek"      -> audioService?.seekTo(map["seconds"])
+            "rate"      -> audioService?.rate(map["rate"])
+            "muted"     -> audioService?.mute(map["muted"])
+            "volume"    -> audioService?.volume(map["volume"])
+            "metadata"  -> audioService?.loadMetadata(
+                map["episodeName"], map["podcastName"], map["imageUrl"]
+            )
             "terminate" -> terminatePodcast()
-            else -> logError("Podcast Error", "Unknown action")
+            else        -> logError("Podcast", "Unknown action: ${map["action"]}")
         }
     }
 
+    // Video playback control from WebView
     @JavascriptInterface
     fun videoMessage(message: String) {
-        var map: Map<String, String> = HashMap()
-        map = Gson().fromJson(message, map.javaClass)
-        when(map["action"]) {
+        val map = try {
+            gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
+        } catch (e: Exception) {
+            logError("Video", "JSON parse error: ${e.localizedMessage}")
+            return
+        }
+
+        when (map["action"]) {
             "play" -> playVideo(map["url"], map["seconds"])
-            else -> logError("Video Error", "Unknown action")
+            else   -> logError("Video", "Unknown action: ${map["action"]}")
         }
     }
 
-    fun playVideo(url: String?, seconds: String?) {
-        url?.let {
-            // Pause the audio player in case the user is currently listening to a audio (podcast)
-            audioService?.pause()
-            timer?.cancel()
+    private fun playVideo(url: String?, seconds: String?) {
+        if (url.isNullOrEmpty()) return
 
-            // Launch VideoPlayerActivity
-            val intent = VideoPlayerActivity.newIntent(context, url, seconds ?: "0")
-            context.startActivity(intent)
+        audioService?.pause()
+        timer?.cancel()
 
+        // Launch video player activity
+        context.startActivity(VideoPlayerActivity.newIntent(context, url, seconds ?: "0"))
+
+        if (!EventBus.getDefault().isRegistered(this)) {
             EventBus.getDefault().register(this)
         }
     }
 
-    fun loadPodcast(url: String?) {
-        if (url == null) return
+    private fun loadPodcast(url: String?) {
+        if (url.isNullOrEmpty()) return
 
+        // Start audio service
         AudioService.newIntent(context, url).also { intent ->
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }
 
-        // Clear out lingering timer if it exists & recreate
+        // Start timer to send playback ticks to WebView
         timer?.cancel()
         timer = Timer()
-        val timeUpdateTask = object: TimerTask() {
+        timer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 podcastTimeUpdate()
             }
-        }
-        timer?.schedule(timeUpdateTask, 0, 1000)
+        }, 0, 1000)
     }
 
     fun terminatePodcast() {
         timer?.cancel()
         timer = null
-        audioService?.let {
-            it.pause()
+
+        audioService?.pause()
+        try {
             context.unbindService(connection)
-            context.stopService(Intent(context, AudioService::class.java))
-            audioService = null
-        }
+        } catch (_: IllegalArgumentException) { /* already unbound */ }
+
+        context.stopService(Intent(context, AudioService::class.java))
+        audioService = null
     }
 
-    fun podcastTimeUpdate() {
-        audioService?.let {
-            val time = it.currentTimeInSec() / 1000
-            val duration = it.durationInSec() / 1000
+    private fun podcastTimeUpdate() {
+        audioService?.let { service ->
+            val time = service.currentTimeInSec() / 1000
+            val duration = service.durationInSec() / 1000
+
             if (duration < 0) {
-                // The duration overflows into a negative when waiting to load audio (initializing)
                 webViewClient?.sendBridgeMessage("podcast", mapOf("action" to "init"))
             } else {
-                val message = mapOf("action" to "tick", "duration" to duration, "currentTime" to time)
-                webViewClient?.sendBridgeMessage("podcast", message)
+                webViewClient?.sendBridgeMessage("podcast", mapOf(
+                    "action" to "tick",
+                    "duration" to duration,
+                    "currentTime" to time
+                ))
             }
         }
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onMessageEvent(event: VideoPlayerPauseEvent) {
+    fun onVideoPauseEvent(event: VideoPlayerPauseEvent) {
         webViewClient?.sendBridgeMessage("video", mapOf("action" to event.action))
         EventBus.getDefault().unregister(this)
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onMessageEvent(event: VideoPlayerTickEvent) {
-        val message = mapOf("action" to event.action, "currentTime" to event.seconds)
-        webViewClient?.sendBridgeMessage("video", message)
-    }
-
-    /**
-     * This method is used to open the native share-sheet of Android when simple text is to be
-     * shared from the web-view.
-     */
-    @JavascriptInterface
-    fun shareText(text: String) {
-        val shareIntent = Intent.createChooser(
-            Intent().apply {
-                action = Intent.ACTION_SEND
-                putExtra(Intent.EXTRA_TEXT, text)
-                type = "text/plain"
-            },
-            null
-        )
-        context.startActivity(shareIntent)
+    fun onVideoTickEvent(event: VideoPlayerTickEvent) {
+        webViewClient?.sendBridgeMessage("video", mapOf(
+            "action" to event.action,
+            "currentTime" to event.seconds
+        ))
     }
 }

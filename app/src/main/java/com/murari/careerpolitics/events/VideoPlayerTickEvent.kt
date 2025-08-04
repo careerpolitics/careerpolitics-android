@@ -1,5 +1,10 @@
 package com.murari.careerpolitics.events
 
-class VideoPlayerTickEvent(val seconds: String) {
-    val action = "tick"
-}
+/**
+ * Event emitted every second while the video is playing,
+ * carrying the current playback time in seconds.
+ */
+data class VideoPlayerTickEvent(
+    val seconds: String,
+    val action: String = "tick"
+)

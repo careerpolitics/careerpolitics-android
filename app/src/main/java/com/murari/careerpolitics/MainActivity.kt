@@ -6,25 +6,30 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.murari.careerpolitics.ui.theme.DevAndroidTheme
+import com.murari.careerpolitics.ui.theme.CareerPoliticsTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
-            DevAndroidTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+            CareerPoliticsTheme {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    content = { innerPadding ->
+                        Greeting(
+                            name = "Android",
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
+                )
             }
         }
     }
@@ -34,14 +39,15 @@ class MainActivity : ComponentActivity() {
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
         text = "Hello $name!",
-        modifier = modifier
+        modifier = modifier,
+        style = MaterialTheme.typography.headlineMedium
     )
 }
 
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-    DevAndroidTheme {
-        Greeting("Android")
+    CareerPoliticsTheme {
+        Greeting("Preview")
     }
 }
