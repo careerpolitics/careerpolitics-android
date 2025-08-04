@@ -6,16 +6,21 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
 
-abstract class BaseActivity<B: ViewDataBinding> : AppCompatActivity() {
+abstract class BaseActivity<B : ViewDataBinding> : AppCompatActivity() {
 
-    lateinit var binding: B
+    private var _binding: B? = null
+    protected val binding get() = _binding!!
 
     @LayoutRes
     protected abstract fun layout(): Int
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = DataBindingUtil.setContentView(this, layout())
+        _binding = DataBindingUtil.setContentView(this, layout())
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        _binding = null
+    }
 }

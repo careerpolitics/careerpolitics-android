@@ -1,18 +1,18 @@
 package com.murari.careerpolitics.activities
 
+import android.app.Application
 import androidx.multidex.MultiDexApplication
-import org.greenrobot.eventbus.EventBus
 import com.murari.careerpolitics.MyEventBusIndex
-
-//import to.dev.dev_android.webclients.EventBusClientIndex
-
+import org.greenrobot.eventbus.EventBus
 
 class StarterApplication : MultiDexApplication() {
 
     override fun onCreate() {
         super.onCreate()
-        EventBus.builder().addIndex(MyEventBusIndex()).build()
-        EventBus.builder().addIndex(MyEventBusIndex()).installDefaultEventBus()
-    }
 
+        // Properly configure the EventBus with index only once
+        EventBus.builder()
+            .addIndex(MyEventBusIndex())
+            .installDefaultEventBus()
+    }
 }

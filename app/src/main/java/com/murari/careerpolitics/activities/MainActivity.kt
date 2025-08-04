@@ -11,31 +11,31 @@ import android.util.Log
 import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebView
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import com.google.firebase.Firebase
+import androidx.core.net.toUri
 import com.google.firebase.messaging.FirebaseMessaging
-import com.google.firebase.messaging.messaging
-import com.pusher.pushnotifications.PushNotifications
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.cancel
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
-import androidx.core.net.toUri
+import com.pusher.pushnotifications.PushNotifications
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
-    private val webViewBridge: AndroidWebViewBridge = AndroidWebViewBridge(this)
+
     private lateinit var webViewClient: CustomWebViewClient
+    private val webViewBridge = AndroidWebViewBridge(this)
 
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
-
     private val mainActivityScope = MainScope()
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+    private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
+    private val requestNotificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
                 Log.i(LOG_TAG, "POST_NOTIFICATIONS permission granted.")
                 initializePushNotifications()
@@ -44,46 +44,50 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             }
         }
 
-    override fun layout(): Int {
-        return R.layout.activity_main
-    }
+    override fun layout(): Int = R.layout.activity_main
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setWebViewSettings()
-        savedInstanceState?.let { restoreState(it) } ?: navigateToHome()
-        //handleIntent(intent)
-        checkAndRequestNotificationPermission()
-        /*binding.showPopupImageView.setOnClickListener {
-            showForemAppAlert()
-        }
 
-        binding.openForemImageView.setOnClickListener {
-            val url = binding.webView.url
-            ForemAppDialog.openForemApp(this, url)
-        }*/
+        // Setup WebView
+        setWebViewSettings()
+
+        // Restore WebView state or navigate to home
+        savedInstanceState?.let { restoreState(it) } ?: navigateToHome()
+
+        // Setup gallery file chooser
+        initGalleryLauncher()
+
+        // Check notification permission
+        checkAndRequestNotificationPermission()
+    }
+
+    private fun initGalleryLauncher() {
+        galleryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                result.data?.data?.let {
+                    filePathCallback?.onReceiveValue(arrayOf(it))
+                } ?: filePathCallback?.onReceiveValue(null)
+            } else {
+                filePathCallback?.onReceiveValue(null)
+            }
+            filePathCallback = null
+        }
     }
 
     override fun onResume() {
-        if (intent.extras != null && intent.extras!!["url"] != null) {
-            val targetUrl = intent.extras!!["url"].toString()
+        super.onResume()
+
+        intent.extras?.getString("url")?.let { targetUrl ->
             try {
-                val targetHost = targetUrl.toUri().host ?: ""
-                if (targetHost.contains("careerpolitics.com")) {
+                if (targetUrl.toUri().host?.contains("careerpolitics.com") == true) {
                     binding.webView.loadUrl(targetUrl)
                 }
             } catch (e: Exception) {
-                Log.e(LOG_TAG, "${e.message}")
+                Log.e(LOG_TAG, "Error loading intent URL: ${e.message}")
             }
         }
 
-        /*if (ForemAppDialog.isForemAppAlreadyInstalled(this)) {
-            binding.openForemImageView.visibility = View.VISIBLE
-        } else {
-            binding.openForemImageView.visibility = View.GONE
-        }*/
-
-        super.onResume()
         webViewClient.observeNetwork()
     }
 
@@ -94,60 +98,44 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     override fun onDestroy() {
         super.onDestroy()
-
-        // Make sure we're not leaving any audio playing behind
         webViewBridge.terminatePodcast()
-
-        // Coroutine cleanup
         mainActivityScope.cancel()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        binding.webView.saveState(outState)
         super.onSaveInstanceState(outState)
+        binding.webView.saveState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIntent(intent)
-    }
-
-    private fun handleIntent(intent: Intent) {
-        val appLinkData: Uri? = intent.data
-        appLinkData?.host?.let {
-            binding.webView.loadUrl(appLinkData.toString())
+        intent.data?.let { uri ->
+            binding.webView.loadUrl(uri.toString())
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setWebViewSettings() {
         WebView.setWebContentsDebuggingEnabled(true)
-        binding.webView.settings.javaScriptEnabled = true
-        binding.webView.settings.domStorageEnabled = true
-        binding.webView.settings.userAgentString = "DEV-Native-android"
+        with(binding.webView.settings) {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            userAgentString = "DEV-Native-android"
+        }
 
         binding.webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
+
         webViewClient = CustomWebViewClient(
-            this@MainActivity,
+            this,
             binding.webView,
             mainActivityScope
         ) {
-            //binding.splash.visibility = View.GONE
             binding.webView.visibility = View.VISIBLE
-            //binding.bottomLayout.visibility = View.VISIBLE
-            // showForemAppAlert()
         }
-        binding.webView.webViewClient = webViewClient
-        webViewBridge.webViewClient = webViewClient
-        binding.webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
-    }
 
-    private fun showForemAppAlert() {
-        val url: String = binding.webView.url ?: ""
-        ForemAppDialog.newInstance(url).show(
-            supportFragmentManager,
-            "ForemAppDialogFragment"
-        )
+        binding.webView.webViewClient = webViewClient
+        binding.webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
+        webViewBridge.webViewClient = webViewClient
     }
 
     private fun restoreState(savedInstanceState: Bundle) {
@@ -158,109 +146,53 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         binding.webView.loadUrl("https://careerpolitics.com/")
     }
 
-    // open home page on back press if webview can go back
-
     fun handleCustomBackPressed() {
         if (binding.webView.canGoBack()) {
             binding.webView.goBack()
         } else {
-            finish() // or moveTaskToBack(true)
+            finish()
         }
     }
 
-    override fun launchGallery(filePathCallback: ValueCallback<Array<Uri>>?) {
+    override fun launchGallery(filePathCallback: ValueCallback<Array<Uri>>) {
         this.filePathCallback = filePathCallback
 
-        val galleryIntent = Intent().apply {
-            // Show only images, no videos or anything else
+        val galleryIntent = Intent(Intent.ACTION_PICK).apply {
             type = "image/*"
-            action = Intent.ACTION_PICK
         }
 
-        // Always show the chooser (if there are multiple options available)
-        startActivityForResult(
-            Intent.createChooser(galleryIntent, "Select Picture"),
-            PIC_CHOOSER_REQUEST,
-            null    // No additional data
-        )
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode != PIC_CHOOSER_REQUEST) {
-            return super.onActivityResult(requestCode, resultCode, data)
-        }
-
-        when (resultCode) {
-            RESULT_OK -> data?.data?.let {
-                filePathCallback?.onReceiveValue(arrayOf(it))
-                filePathCallback = null
-            }
-
-            RESULT_CANCELED -> {
-                filePathCallback?.onReceiveValue(null)
-                filePathCallback = null
-            }
-        }
-    }
-
-    companion object {
-        private const val PIC_CHOOSER_REQUEST = 100
-        private const val LOG_TAG = "MainActivity"
+        galleryLauncher.launch(Intent.createChooser(galleryIntent, "Select Picture"))
     }
 
     private fun checkAndRequestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // TIRAMISU is Android 13
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             when {
                 ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
+                    this, Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED -> {
-                    Log.i(LOG_TAG, "POST_NOTIFICATIONS permission already granted.")
-                    // You can use the API that requires the permission.
                     initializePushNotifications()
                 }
-
                 shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
-                    // In an educational UI, explain to the user why your app requires this
-                    // permission for a specific feature to behave as expected, and what
-                    // features are disabled if it's declined. In this UI, include a
-                    // "cancel" or "no thanks" button that lets the user continue
-                    // using your app without granting the permission.
-                    Log.i(LOG_TAG, "Showing rationale for POST_NOTIFICATIONS permission.")
-                    // Example: show a dialog here explaining why you need the permission
-                    // and then call requestPermissionLauncher.launch(...) if the user agrees.
-                    // For simplicity, directly requesting here, but a rationale is recommended.
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
-
                 else -> {
-                    // Directly ask for the permission.
-                    // The result of this request will be handled by the
-                    // an 'onRequestPermissionsResult' callback registered via
-                    // 'registerForActivityResult(...)'
-                    Log.i(LOG_TAG, "Requesting POST_NOTIFICATIONS permission.")
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
         } else {
-            // Notification permission is not required for versions below Android 13.
-            Log.i(LOG_TAG, "Notification permission not required for this Android version.")
             initializePushNotifications()
         }
     }
 
     private fun initializePushNotifications() {
-        // Moved Pusher initialization here to ensure it's called after permission check
-        // or if permission is not required.
         FirebaseMessaging.getInstance().subscribeToTopic("all").addOnCompleteListener {
-            if(it.isSuccessful){
-                Log.i("fcm","subscribed")
-            }else{
-                Log.i("fcm","not subscribed")
-            }
+            Log.i("FCM", if (it.isSuccessful) "Subscribed" else "Failed to subscribe")
         }
-        Log.d(LOG_TAG, "Initializing PushNotifications.")
         PushNotifications.start(applicationContext, "cdaf9857-fad0-4bfb-b360-64c1b2693ef3")
         PushNotifications.addDeviceInterest("broadcast")
+    }
+
+    companion object {
+        private const val LOG_TAG = "MainActivity"
     }
 }

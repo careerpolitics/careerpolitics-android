@@ -5,7 +5,6 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 
-
 class CustomWebChromeClient(
     private val baseURL: String,
     private val listener: CustomListener
@@ -16,18 +15,24 @@ class CustomWebChromeClient(
         filePathCallback: ValueCallback<Array<Uri>>?,
         fileChooserParams: FileChooserParams?
     ): Boolean {
-        listener.launchGallery(filePathCallback)
-        return true
+        // Delegate file chooser handling to the listener
+        filePathCallback?.let {
+            listener.launchGallery(it)
+            return true
+        }
+        return false
     }
 
     override fun onProgressChanged(view: WebView, newProgress: Int) {
         super.onProgressChanged(view, newProgress)
+
+        // Optionally clear history when initial page is fully loaded
         if (newProgress == 100 && view.url == baseURL) {
-            //view.clearHistory()
+            // view.clearHistory() // Uncomment if needed
         }
     }
 
     interface CustomListener {
-        fun launchGallery(filePathCallback: ValueCallback<Array<Uri>>?)
+        fun launchGallery(filePathCallback: ValueCallback<Array<Uri>>)
     }
 }
