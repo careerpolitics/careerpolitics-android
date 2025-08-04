@@ -36,6 +36,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val mainActivityScope = MainScope()
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
+    private var isSplashScreenReady = false
+
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) initializePushNotifications()
@@ -44,11 +46,12 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun layout(): Int = R.layout.activity_main
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Splash Screen integration
         val splashScreen = installSplashScreen()
-        var isReady = false
-        splashScreen.setKeepOnScreenCondition { !isReady }
+        splashScreen.setKeepOnScreenCondition { !isSplashScreenReady }
 
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionIfNeeded()
         binding?.let {
             setContentView(it.root)
 
@@ -67,9 +70,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             initGalleryLauncher()
 
             mainActivityScope.launch {
-                delay(500)
-                checkAndRequestNotificationPermission()
-                isReady = true
+                delay(500) // allow for splash transition
+                requestNotificationPermissionIfNeeded()
+                isSplashScreenReady = true
             }
         }
     }
@@ -77,8 +80,36 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private fun initGalleryLauncher() {
         galleryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val uri = result.data?.data
-            filePathCallback?.onReceiveValue(uri?.let { arrayOf(it) } ?: null)
+            filePathCallback?.onReceiveValue(uri?.let { arrayOf(it) })
             filePathCallback = null
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permission = Manifest.permission.POST_NOTIFICATIONS
+            when {
+                ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED ->
+                    initializePushNotifications()
+
+                shouldShowRequestPermissionRationale(permission) ->
+                    requestNotificationPermissionLauncher.launch(permission)
+
+                else -> requestNotificationPermissionLauncher.launch(permission)
+            }
+        } else {
+            initializePushNotifications()
+        }
+    }
+
+    private fun initializePushNotifications() {
+        try {
+            FirebaseMessaging.getInstance().subscribeToTopic("all")
+            PushNotifications.start(applicationContext, "923a6e14-cca6-47dd-b98e-8145f7724dd7")
+            PushNotifications.addDeviceInterest("broadcast")
+            Log.d(LOG_TAG, "Push Notifications initialized")
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Error initializing push notifications: ${e.message}", e)
         }
     }
 
@@ -130,11 +161,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
 
-            webViewClient = CustomWebViewClient(
-                this,
-                webView,
-                mainActivityScope
-            ) {
+            webViewClient = CustomWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
             }
 
@@ -163,28 +190,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         galleryLauncher.launch(
             Intent(Intent.ACTION_PICK).apply { type = "image/*" }
         )
-    }
-
-    private fun checkAndRequestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED -> initializePushNotifications()
-
-                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) ->
-                    requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-
-                else -> requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        } else initializePushNotifications()
-    }
-
-    private fun initializePushNotifications() {
-        FirebaseMessaging.getInstance().subscribeToTopic("all")
-        PushNotifications.start(applicationContext, "cdaf9857-fad0-4bfb-b360-64c1b2693ef3")
-        PushNotifications.addDeviceInterest("broadcast")
     }
 
     companion object {

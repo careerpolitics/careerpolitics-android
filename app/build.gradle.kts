@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.google.services)
+    id("com.google.gms.google-services")
     id("kotlin-kapt")
 }
 
@@ -78,6 +78,8 @@ dependencies {
 
     // Firebase Messaging
     implementation(libs.firebase.messaging)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
 
     // Pusher Push Notifications
     implementation(libs.push.notifications.android)
