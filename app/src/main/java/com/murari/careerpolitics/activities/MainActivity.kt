@@ -24,6 +24,7 @@ import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
+import androidx.core.net.toUri
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
     private val webViewBridge: AndroidWebViewBridge = AndroidWebViewBridge(this)
@@ -67,7 +68,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         if (intent.extras != null && intent.extras!!["url"] != null) {
             val targetUrl = intent.extras!!["url"].toString()
             try {
-                val targetHost = Uri.parse(targetUrl).host ?: ""
+                val targetHost = targetUrl.toUri().host ?: ""
                 if (targetHost.contains("careerpolitics.com")) {
                     binding.webView.loadUrl(targetUrl)
                 }
@@ -159,11 +160,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     // open home page on back press if webview can go back
 
-    override fun onBackPressed() {
+    fun handleCustomBackPressed() {
         if (binding.webView.canGoBack()) {
             binding.webView.goBack()
         } else {
-            super.onBackPressed()
+            finish() // or moveTaskToBack(true)
         }
     }
 

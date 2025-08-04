@@ -1,5 +1,6 @@
 package com.murari.careerpolitics.media
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
@@ -105,6 +106,7 @@ class AudioService : LifecycleService() {
                 }
             })
             .setNotificationListener(object : PlayerNotificationManager.NotificationListener {
+                @SuppressLint("ForegroundServiceType")
                 override fun onNotificationPosted(
                     notificationId: Int,
                     notification: Notification,
