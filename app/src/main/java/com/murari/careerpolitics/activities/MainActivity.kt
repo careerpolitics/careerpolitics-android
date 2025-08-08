@@ -110,6 +110,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             Log.d(LOG_TAG, "Push Notifications initialized")
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Error initializing push notifications: ${e.message}", e)
+            // Fallback: try to initialize without Firebase if it fails
+            try {
+                PushNotifications.start(applicationContext, "923a6e14-cca6-47dd-b98e-8145f7724dd7")
+                PushNotifications.addDeviceInterest("broadcast")
+                Log.d(LOG_TAG, "Push Notifications initialized (fallback)")
+            } catch (fallbackException: Exception) {
+                Log.e(LOG_TAG, "Fallback push notification initialization failed: ${fallbackException.message}", fallbackException)
+            }
         }
     }
 
@@ -138,6 +146,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         super.onDestroy()
         webViewBridge.terminatePodcast()
         mainActivityScope.cancel()
+        
+        // Clear WebView to prevent memory leaks
+        binding?.webView?.let { webView ->
+            webView.clearHistory()
+            webView.clearCache(true)
+            webView.loadUrl("about:blank")
+            webView.onPause()
+            webView.removeAllViews()
+            webView.destroy()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
