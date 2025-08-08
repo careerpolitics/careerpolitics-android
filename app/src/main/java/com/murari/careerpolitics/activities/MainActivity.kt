@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +23,7 @@ import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
+import com.murari.careerpolitics.util.network.OfflineWebViewClient
 import com.pusher.pushnotifications.PushNotifications
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -30,7 +32,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
-    private lateinit var webViewClient: CustomWebViewClient
+    private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
@@ -179,13 +181,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
 
-            webViewClient = CustomWebViewClient(this, webView, mainActivityScope) {
+            webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
             }
 
-            webView.webViewClient = webViewClient
+            webView.webViewClient = webViewClient as WebViewClient
             webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
-            webViewBridge.webViewClient = webViewClient
+            webViewBridge.webViewClient = webViewClient as CustomWebViewClient
         }
     }
 
