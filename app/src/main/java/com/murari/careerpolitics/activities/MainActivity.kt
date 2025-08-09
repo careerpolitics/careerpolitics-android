@@ -218,7 +218,64 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             webView.webViewClient = webViewClient as WebViewClient
             webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
+
+            // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh
+            setupLeftEdgeSwipeForSidebar(webView)
         }
+    }
+
+    private fun setupLeftEdgeSwipeForSidebar(webView: WebView) {
+        val edgeWidthPx = (24 * webView.resources.displayMetrics.density).toInt()
+        val triggerDxPx = (30 * webView.resources.displayMetrics.density).toInt()
+        var downX = 0f
+        var downY = 0f
+        var eligible = false
+        var triggered = false
+
+        webView.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    eligible = downX <= edgeWidthPx
+                    triggered = false
+                    false // do not consume; allow WebView to handle
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (eligible && !triggered) {
+                        val dx = event.x - downX
+                        val dy = event.y - downY
+                        if (dx > triggerDxPx && kotlin.math.abs(dx) > 2 * kotlin.math.abs(dy)) {
+                            triggered = true
+                            openWebSidebar(webView)
+                            // Do not consume to keep vertical gestures intact
+                            false
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    eligible = false
+                    triggered = false
+                    false
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun openWebSidebar(webView: WebView) {
+        val js = """
+            (function(){
+                function q(){return document.querySelector('button.js-hamburger-trigger,[data-sidebar-toggle],button[aria-label*="menu" i],button[aria-label*="navigation" i],.hamburger,.menu,.drawer-toggle,.navbar-toggle,[data-testid="menu-button"],[data-action="open-sidebar"]');}
+                function simulate(el){try{el.focus();}catch(e){} var o={bubbles:true,cancelable:true}; try{el.dispatchEvent(new PointerEvent('pointerdown',o));}catch(e){} try{el.dispatchEvent(new MouseEvent('mousedown',o));}catch(e){} try{el.dispatchEvent(new TouchEvent('touchstart',o));}catch(e){} try{el.dispatchEvent(new MouseEvent('click',o));}catch(e){} try{el.dispatchEvent(new MouseEvent('mouseup',o));}catch(e){} try{el.dispatchEvent(new PointerEvent('pointerup',o));}catch(e){} }
+                var el=q(); if(el){simulate(el); return true;} return false;
+            })()
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
     }
 
     private fun restoreState(savedInstanceState: Bundle) {
