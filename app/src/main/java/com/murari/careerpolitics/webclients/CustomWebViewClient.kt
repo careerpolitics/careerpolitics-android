@@ -42,7 +42,45 @@ open class CustomWebViewClient(
     override fun onPageFinished(view: WebView, url: String?) {
         view.visibility = View.VISIBLE
         onPageFinish()
+        // Signal page-loaded to activity via a JS bridge callback
+        // Soft signal of page load; Activity can also manage readiness
+        // Inject helper to open sidebar from native reliably
+        val injectSidebarHelper = (
+            "(function(){" +
+                "if(window.__nativeSidebar&&window.__nativeSidebar.__v==1)return true;" +
+                "window.__nativeSidebar=(function(){" +
+                    "function q(){return document.querySelector('button.js-hamburger-trigger,[data-sidebar-toggle],button[aria-label*\\u003d\"menu\" i],button[aria-label*\\u003d\"navigation\" i],.hamburger,.menu,.drawer-toggle,.navbar-toggle,[data-testid\\u003d\"menu-button\"],[data-action\\u003d\"open-sidebar\"]');}" +
+                    "function isOpen(){return !!document.querySelector('.crayons-drawer--left.open,.crayons-drawer.open,.nav--open,.is-open,.menu-open,body.sidebar-open');}" +
+                    "function simulate(el){try{el.focus();}catch(e){} var opts={bubbles:true,cancelable:true}; try{el.dispatchEvent(new PointerEvent('pointerdown',opts));}catch(e){} try{el.dispatchEvent(new MouseEvent('mousedown',opts));}catch(e){} try{el.dispatchEvent(new TouchEvent('touchstart',opts));}catch(e){} try{el.dispatchEvent(new MouseEvent('click',opts));}catch(e){} try{el.dispatchEvent(new MouseEvent('mouseup',opts));}catch(e){} try{el.dispatchEvent(new PointerEvent('pointerup',opts));}catch(e){} }" +
+                    "function open(){if(isOpen())return true;var el=q();if(el){simulate(el);return true;}return false;}" +
+                    "return {open:open,isOpen:isOpen,__v:1};" +
+                "})();" +
+                // Listen for native event to trigger open
+                "window.addEventListener('native-open-sidebar', function(){ try{window.__nativeSidebar&&__nativeSidebar.open();}catch(e){} }, {passive:true});" +
+                "true;" +
+            "})();"
+        )
+        view.evaluateJavascript(injectSidebarHelper, null)
         super.onPageFinished(view, url)
+    }
+
+    override fun onPageCommitVisible(view: WebView?, url: String?) {
+        super.onPageCommitVisible(view, url)
+        // Early inject to help SPAs
+        val injectSidebarHelperEarly = (
+            "(function(){" +
+                "if(window.__nativeSidebar&&window.__nativeSidebar.__v==1)return true;" +
+                "window.__nativeSidebar=(function(){" +
+                    "function q(){return document.querySelector('button.js-hamburger-trigger,[data-sidebar-toggle],button[aria-label*\\u003d\"menu\" i],button[aria-label*\\u003d\"navigation\" i],.hamburger,.menu,.drawer-toggle,.navbar-toggle,[data-testid\\u003d\"menu-button\"],[data-action\\u003d\"open-sidebar\"]');}" +
+                    "function isOpen(){return !!document.querySelector('.crayons-drawer--left.open,.crayons-drawer.open,.nav--open,.is-open,.menu-open,body.sidebar-open');}" +
+                    "function simulate(el){try{el.focus();}catch(e){} var opts={bubbles:true,cancelable:true}; try{el.dispatchEvent(new PointerEvent('pointerdown',opts));}catch(e){} try{el.dispatchEvent(new MouseEvent('mousedown',opts));}catch(e){} try{el.dispatchEvent(new TouchEvent('touchstart',opts));}catch(e){} try{el.dispatchEvent(new MouseEvent('click',opts));}catch(e){} try{el.dispatchEvent(new MouseEvent('mouseup',opts));}catch(e){} try{el.dispatchEvent(new PointerEvent('pointerup',opts));}catch(e){} }" +
+                    "function open(){if(isOpen())return true;var el=q();if(el){simulate(el);return true;}return false;}" +
+                    "return {open:open,isOpen:isOpen,__v:1};" +
+                "})();" +
+                "true;" +
+            "})();"
+        )
+        view?.evaluateJavascript(injectSidebarHelperEarly, null)
     }
 
     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {

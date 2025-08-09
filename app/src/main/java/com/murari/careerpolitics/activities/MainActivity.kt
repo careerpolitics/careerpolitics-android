@@ -11,12 +11,18 @@ import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.graphics.Color
+import android.content.res.Configuration
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.GravityCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
@@ -25,10 +31,15 @@ import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
 import com.murari.careerpolitics.util.network.OfflineWebViewClient
 import com.pusher.pushnotifications.PushNotifications
+import com.murari.careerpolitics.core.sidebar.SidebarController
+import com.murari.careerpolitics.core.gesture.EdgeSwipeHandler
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import com.murari.careerpolitics.util.DrawerMenuPublisher
+import com.murari.careerpolitics.util.DrawerMenuItem
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -36,6 +47,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
+    private val sidebarController = SidebarController()
+    
+    // Drawer
+    private val drawerLayout by lazy { binding?.root?.findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.drawer_layout) }
+    private val navigationView by lazy { binding?.root?.findViewById<com.google.android.material.navigation.NavigationView>(R.id.nav_view) }
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
     private var isSplashScreenReady = false
@@ -52,10 +68,17 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { !isSplashScreenReady }
 
+        // Draw behind system bars for edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
         binding?.let {
             setContentView(it.root)
+            enableImmersiveMode()
+            setupDrawer()
 
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
@@ -77,6 +100,45 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 isSplashScreenReady = true
             }
         }
+    }
+
+    private fun setupDrawer() {
+        // Hamburger click should trigger the web app's sidebar
+        binding?.root?.findViewById<android.widget.ImageButton>(R.id.menu_button)?.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            binding?.webView?.let { sidebarController.requestOpen(it) }
+        }
+
+        // Left-edge swipe target triggers the sidebar without invoking DrawerLayout animation
+        binding?.root?.findViewById<View>(R.id.edge_swipe_target)?.let { target ->
+            EdgeSwipeHandler(target) { binding?.webView?.let { sidebarController.requestOpen(it) } }
+        }
+
+        // Disable drawer gestures (we handle edge swipe ourselves to avoid flicker)
+        drawerLayout?.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+
+        // We no longer populate a native menu; web app owns the sidebar
+    }
+
+    // Sidebar open/close handled by SidebarController via WebView
+
+    private fun enableImmersiveMode() {
+        val rootView = binding?.root ?: window.decorView
+        val controller = WindowInsetsControllerCompat(window, rootView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+
+        val isDarkMode =
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                    Configuration.UI_MODE_NIGHT_YES
+        controller.isAppearanceLightStatusBars = !isDarkMode
+        controller.isAppearanceLightNavigationBars = !isDarkMode
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) enableImmersiveMode()
     }
 
     private fun initGalleryLauncher() {
@@ -183,6 +245,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
+                sidebarController.onPageLoaded(webView)
             }
 
             webView.webViewClient = webViewClient as WebViewClient
@@ -200,9 +263,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     fun handleCustomBackPressed() {
-        binding?.webView?.let {
-            if (it.canGoBack()) it.goBack() else finish()
+        // Close drawer first if open
+        drawerLayout?.let { dl ->
+            if (dl.isDrawerOpen(GravityCompat.START)) {
+                dl.closeDrawer(GravityCompat.START)
+                return
+            }
         }
+        binding?.webView?.let { if (it.canGoBack()) it.goBack() else finish() }
     }
 
     override fun launchGallery(filePathCallback: ValueCallback<Array<Uri>>) {

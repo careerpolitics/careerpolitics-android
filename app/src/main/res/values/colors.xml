@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#000000</color>
-    <color name="purple_500">#000000</color>
-    <color name="purple_700">#000000</color>
+    <!-- Align with Compose palette -->
+    <color name="purple_200">#D0BCFF</color>
+    <color name="purple_500">#6650A4</color>
+    <color name="purple_700">#4A3C88</color>
     <color name="teal_200">#87DFD5</color>
-    <color name="teal_700">#87DFD5</color>
+    <color name="teal_700">#5CBDB1</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
