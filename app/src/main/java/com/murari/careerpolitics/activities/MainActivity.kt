@@ -11,12 +11,17 @@ import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.graphics.Color
+import android.content.res.Configuration
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
@@ -52,10 +57,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { !isSplashScreenReady }
 
+        // Draw behind system bars for edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
         binding?.let {
             setContentView(it.root)
+            enableImmersiveMode()
 
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
@@ -77,6 +88,25 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 isSplashScreenReady = true
             }
         }
+    }
+
+    private fun enableImmersiveMode() {
+        val rootView = binding?.root ?: window.decorView
+        val controller = WindowInsetsControllerCompat(window, rootView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+
+        val isDarkMode =
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                    Configuration.UI_MODE_NIGHT_YES
+        controller.isAppearanceLightStatusBars = !isDarkMode
+        controller.isAppearanceLightNavigationBars = !isDarkMode
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) enableImmersiveMode()
     }
 
     private fun initGalleryLauncher() {
