@@ -19,7 +19,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.json.JSONObject
 
-class CustomWebViewClient(
+open class CustomWebViewClient(
     private val context: Context,
     private val view: WebView,
     private val coroutineScope: CoroutineScope,
@@ -148,13 +148,13 @@ class CustomWebViewClient(
         }
     }
 
-    fun observeNetwork() {
+    open fun observeNetwork() {
         if (!EventBus.getDefault().isRegistered(this)) {
             EventBus.getDefault().register(this)
         }
     }
 
-    fun unobserveNetwork() {
+    open fun unobserveNetwork() {
         coroutineScope.cancel()
         EventBus.getDefault().unregister(this)
         unregisterNetworkWatcher()

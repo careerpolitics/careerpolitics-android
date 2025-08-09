@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +23,7 @@ import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
+import com.murari.careerpolitics.util.network.OfflineWebViewClient
 import com.pusher.pushnotifications.PushNotifications
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -30,7 +32,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
-    private lateinit var webViewClient: CustomWebViewClient
+    private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
@@ -110,6 +112,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             Log.d(LOG_TAG, "Push Notifications initialized")
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Error initializing push notifications: ${e.message}", e)
+            // Fallback: try to initialize without Firebase if it fails
+            try {
+                PushNotifications.start(applicationContext, "923a6e14-cca6-47dd-b98e-8145f7724dd7")
+                PushNotifications.addDeviceInterest("broadcast")
+                Log.d(LOG_TAG, "Push Notifications initialized (fallback)")
+            } catch (fallbackException: Exception) {
+                Log.e(LOG_TAG, "Fallback push notification initialization failed: ${fallbackException.message}", fallbackException)
+            }
         }
     }
 
@@ -138,6 +148,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         super.onDestroy()
         webViewBridge.terminatePodcast()
         mainActivityScope.cancel()
+        
+        // Clear WebView to prevent memory leaks
+        binding?.webView?.let { webView ->
+            webView.clearHistory()
+            webView.clearCache(true)
+            webView.loadUrl("about:blank")
+            webView.onPause()
+            webView.removeAllViews()
+            webView.destroy()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -161,13 +181,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
 
-            webViewClient = CustomWebViewClient(this, webView, mainActivityScope) {
+            webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
             }
 
-            webView.webViewClient = webViewClient
+            webView.webViewClient = webViewClient as WebViewClient
             webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
-            webViewBridge.webViewClient = webViewClient
+            webViewBridge.webViewClient = webViewClient as CustomWebViewClient
         }
     }
 
