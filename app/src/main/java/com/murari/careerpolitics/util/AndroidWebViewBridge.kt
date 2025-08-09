@@ -6,7 +6,6 @@ import android.util.Log
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.murari.careerpolitics.activities.VideoPlayerActivity
 import com.murari.careerpolitics.events.VideoPlayerPauseEvent
 import com.murari.careerpolitics.events.VideoPlayerTickEvent
@@ -63,19 +62,6 @@ class AndroidWebViewBridge(private val context: Context) {
             type = "text/plain"
         }
         context.startActivity(Intent.createChooser(shareIntent, null))
-    }
-
-    // Receive dynamic drawer items from WebView (JSON array)
-    // Example JSON: [{"title":"Home","url":"/","icon":"home"}, ...]
-    @JavascriptInterface
-    fun setDrawerItems(json: String) {
-        try {
-            val listType = object : TypeToken<List<DrawerMenuItem>>() {}.type
-            val items: List<DrawerMenuItem> = gson.fromJson(json, listType)
-            DrawerMenuPublisher.publish(items)
-        } catch (e: Exception) {
-            logError("Drawer", "Invalid drawer items JSON: ${e.localizedMessage}")
-        }
     }
 
     // Podcast control from WebView
