@@ -43,7 +43,7 @@ open class CustomWebViewClient(
         view.visibility = View.VISIBLE
         onPageFinish()
         // Signal page-loaded to activity via a JS bridge callback
-        view.evaluateJavascript("(function(){try{window.AndroidBridge&&AndroidBridge.showToast&&AndroidBridge.showToast('');}catch(e){} true;})()", null)
+        // Soft signal of page load; Activity can also manage readiness
         // Inject helper to open sidebar from native reliably
         val injectSidebarHelper = (
             "(function(){" +
