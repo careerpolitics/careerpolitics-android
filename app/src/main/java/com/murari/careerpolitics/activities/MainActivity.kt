@@ -22,6 +22,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.GravityCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
@@ -34,6 +35,9 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import com.murari.careerpolitics.util.DrawerMenuPublisher
+import com.murari.careerpolitics.util.DrawerMenuItem
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -41,6 +45,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
+    private var isPageLoaded: Boolean = false
+    private var pendingOpenSidebar: Boolean = false
+    private var lastSidebarTriggerMs: Long = 0L
+    
+    // Drawer
+    private val drawerLayout by lazy { binding?.root?.findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.drawer_layout) }
+    private val navigationView by lazy { binding?.root?.findViewById<com.google.android.material.navigation.NavigationView>(R.id.nav_view) }
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
     private var isSplashScreenReady = false
@@ -67,6 +78,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         binding?.let {
             setContentView(it.root)
             enableImmersiveMode()
+            setupDrawer()
 
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
@@ -87,6 +99,84 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 requestNotificationPermissionIfNeeded()
                 isSplashScreenReady = true
             }
+        }
+    }
+
+    private fun setupDrawer() {
+        // Hamburger click should trigger the web app's sidebar
+        binding?.root?.findViewById<android.widget.ImageButton>(R.id.menu_button)?.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            requestOpenWebSidebar()
+        }
+
+        // Left-edge swipe target triggers the sidebar without invoking DrawerLayout animation
+        binding?.root?.findViewById<View>(R.id.edge_swipe_target)?.setOnTouchListener(object : View.OnTouchListener {
+            private var startX = 0f
+            private var startY = 0f
+            private val touchSlop = 16 * resources.displayMetrics.density
+            private var triggered = false
+            override fun onTouch(v: View?, event: android.view.MotionEvent?): Boolean {
+                event ?: return false
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        startX = event.rawX
+                        startY = event.rawY
+                        triggered = false
+                        return true
+                    }
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - startX
+                        val dy = kotlin.math.abs(event.rawY - startY)
+                        if (!triggered && dx > touchSlop && dy < 3 * touchSlop) {
+                            v?.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                            triggered = true
+                        }
+                        return triggered
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        if (triggered) {
+                            requestOpenWebSidebar()
+                            triggered = false
+                            return true
+                        }
+                    }
+                }
+                return false
+            }
+        })
+
+        // Disable drawer gestures (we handle edge swipe ourselves to avoid flicker)
+        drawerLayout?.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+
+        // We no longer populate a native menu; web app owns the sidebar
+    }
+
+    private fun openWebSidebar() {
+        // Re-inject helper quickly then open; also dispatch a custom event
+        val js = "(function(){" +
+                "try{if(!(window.__nativeSidebar&&__nativeSidebar.open)){throw new Error('reinjection');}}catch(_){" +
+                    "(function(){if(window.__nativeSidebar&&window.__nativeSidebar.__v==1)return true;window.__nativeSidebar=(function(){function q(){return document.querySelector('button.js-hamburger-trigger,[data-sidebar-toggle],button[aria-label*\\u003d\"menu\" i],button[aria-label*\\u003d\"navigation\" i],.hamburger,.menu,.drawer-toggle,.navbar-toggle,[data-testid\\u003d\"menu-button\"],[data-action\\u003d\"open-sidebar\"]');}function isOpen(){return document.body.classList.contains('sidebar-open')||!!document.querySelector('.sidebar.open,.drawer.open,.nav--open,.is-open,.menu-open,[aria-expanded\\u003d\"true\"]');}function open(){if(isOpen())return true;var el=q();if(el){el.click();return true;}var t=document.elementFromPoint(24,24);if(t){t.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));return true;}return false;}return {open:open,isOpen:isOpen,__v:1};})();})();" +
+                "}" +
+                "try{window.__nativeSidebar&&__nativeSidebar.open&&__nativeSidebar.open();}catch(e){} try{window.dispatchEvent(new Event('native-open-sidebar'));}catch(e){} true;})()"
+        binding?.webView?.evaluateJavascript(js, null)
+    }
+
+    private fun requestOpenWebSidebar() {
+        val now = System.currentTimeMillis()
+        if (now - lastSidebarTriggerMs < 250) return // debounce
+        lastSidebarTriggerMs = now
+        if (!isPageLoaded) {
+            pendingOpenSidebar = true
+            return
+        }
+        openWebSidebar()
+    }
+
+    private fun closeWebSidebarOr(onNotOpen: () -> Unit) {
+        val js = "(function(){try{var isOpen=!!(window.__nativeSidebar&&__nativeSidebar.isOpen&&__nativeSidebar.isOpen()); if(isOpen){var el=document.querySelector('button.js-hamburger-trigger'); if(el){el.click(); return true;} } return false;}catch(e){return false;}})()"
+        binding?.webView?.evaluateJavascript(js) { result ->
+            val isClosed = result?.contains("true") == true
+            if (!isClosed) onNotOpen()
         }
     }
 
@@ -213,6 +303,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
+                isPageLoaded = true
+                if (pendingOpenSidebar) {
+                    pendingOpenSidebar = false
+                    openWebSidebar()
+                }
             }
 
             webView.webViewClient = webViewClient as WebViewClient
@@ -230,9 +325,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     fun handleCustomBackPressed() {
-        binding?.webView?.let {
-            if (it.canGoBack()) it.goBack() else finish()
+        // Close drawer first if open
+        drawerLayout?.let { dl ->
+            if (dl.isDrawerOpen(GravityCompat.START)) {
+                dl.closeDrawer(GravityCompat.START)
+                return
+            }
         }
+        binding?.webView?.let { if (it.canGoBack()) it.goBack() else finish() }
     }
 
     override fun launchGallery(filePathCallback: ValueCallback<Array<Uri>>) {

@@ -4,29 +4,54 @@
 
     <data></data>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <androidx.drawerlayout.widget.DrawerLayout
+        android:id="@+id/drawer_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true">
+
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-        <!--<ImageView
-                android:id="@+id/splash"
+            <WebView
+                android:id="@+id/web_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@color/black"
-                android:contentDescription="@string/splash_description"
-                android:src="@drawable/ic_launcher_foreground"
-                android:visibility="visible" />-->
+                android:visibility="visible" />
 
-        <WebView
-            android:id="@+id/web_view"
-            android:layout_width="match_parent"
+            <!-- Overlay hamburger button (optional; swipe from edge also opens drawer) -->
+            <ImageButton
+                android:id="@+id/menu_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="12dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/app_name"
+                android:padding="8dp"
+                android:src="@drawable/ic_menu_24"
+                android:tint="@color/white" />
+
+            <!-- Invisible left-edge gesture target to open the web sidebar -->
+            <View
+                android:id="@+id/edge_swipe_target"
+                android:layout_width="24dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                android:background="@android:color/transparent" />
+
+        </FrameLayout>
+
+        <com.google.android.material.navigation.NavigationView
+            android:id="@+id/nav_view"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:visibility="visible"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            android:layout_gravity="start"
+            android:fitsSystemWindows="true"
+            android:background="@android:color/transparent"
+            android:visibility="visible" />
 
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.drawerlayout.widget.DrawerLayout>
 </layout>
