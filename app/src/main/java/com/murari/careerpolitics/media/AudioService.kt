@@ -38,7 +38,7 @@ class AudioService : LifecycleService() {
 
         const val ARG_PODCAST_URL = "ARG_PODCAST_URL"
         const val PLAYBACK_CHANNEL_ID = "playback_channel"
-        const val MEDIA_SESSION_TAG = "DEV Community Session"
+        const val MEDIA_SESSION_TAG = "CareerPolitics Session"
         const val NOTIFICATION_ID = 1
         const val SKIP_MS = 15000
     }

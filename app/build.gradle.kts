@@ -20,6 +20,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
+        buildConfigField("String", "BASE_URL", "\"https://careerpolitics.com/\"")
+        buildConfigField("String", "USER_AGENT", "\"CareerPolitics-Native-Android\"")
+
     }
 
     // Build performance optimizations
@@ -49,6 +52,9 @@ android {
         debug {
             isDebuggable = true
             versionNameSuffix = "-debug"
+            buildConfigField("String", "BASE_URL", "\"https://careerpolitics.com/\"")
+            buildConfigField("String", "USER_AGENT", "\"CareerPolitics-Native-Android\"")
+
         }
     }
 
@@ -58,6 +64,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     dataBinding {

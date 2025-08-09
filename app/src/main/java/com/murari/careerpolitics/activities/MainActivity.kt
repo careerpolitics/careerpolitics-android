@@ -3,7 +3,6 @@ package com.murari.careerpolitics.activities
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -13,6 +12,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.graphics.Color
 import android.content.res.Configuration
+import android.net.Uri
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +24,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.GravityCompat
 import com.google.firebase.messaging.FirebaseMessaging
+import com.murari.careerpolitics.BuildConfig
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
@@ -37,9 +38,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collectLatest
-import com.murari.careerpolitics.util.DrawerMenuPublisher
-import com.murari.careerpolitics.util.DrawerMenuItem
+ 
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -238,10 +237,12 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             with(webView.settings) {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                userAgentString = "DEV-Native-android"
+                userAgentString = BuildConfig.USER_AGENT
             }
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
+            // Alias for legacy pages expecting AndroidWebViewBridge
+            webView.addJavascriptInterface(webViewBridge, "AndroidWebViewBridge")
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
@@ -249,7 +250,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             }
 
             webView.webViewClient = webViewClient as WebViewClient
-            webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
+            webView.webChromeClient = CustomWebChromeClient(BuildConfig.BASE_URL, this)
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
         }
     }
@@ -259,7 +260,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun navigateToHome() {
-        binding?.webView?.loadUrl("https://careerpolitics.com/")
+        binding?.webView?.loadUrl(BuildConfig.BASE_URL)
     }
 
     fun handleCustomBackPressed() {
