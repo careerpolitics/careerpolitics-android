@@ -2,13 +2,23 @@
 
     <!-- Base app theme -->
     <style name="Theme.DevAndroid" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Harmonize with Material3 edge-to-edge -->
+        <!-- Brand colors -->
         <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="colorSecondary">@color/purple_700</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- Status bar to match theme -->
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Navigation bar to match theme -->
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        <!-- Edge-to-edge support -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:fitsSystemWindows">false</item>
     </style>
 
     <!-- Splash screen theme (Android 12+) -->
@@ -17,8 +27,6 @@
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/white</item>
         <item name="postSplashScreenTheme">@style/Theme.DevAndroid</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
 </resources>
