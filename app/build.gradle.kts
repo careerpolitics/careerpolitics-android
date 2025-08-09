@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.murari.careerpolitics"
-        minSdk = 24
+        minSdk = 27
         targetSdk = 36
         versionCode = 3
         versionName = "3.0"
