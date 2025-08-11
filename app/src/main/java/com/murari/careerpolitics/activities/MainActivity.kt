@@ -169,13 +169,17 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                     Log.e(LOG_TAG, "Error loading intent URL: ${e.message}")
                 }
             }
-            webViewClient.observeNetwork()
+            if (::webViewClient.isInitialized) {
+                webViewClient.observeNetwork()
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
-        webViewClient.unobserveNetwork()
+        if (::webViewClient.isInitialized) {
+            webViewClient.unobserveNetwork()
+        }
     }
 
     override fun onDestroy() {
@@ -215,41 +219,30 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
 
-            webViewClient = object : OfflineWebViewClient(this, webView, mainActivityScope) {
+            webViewClient = object : OfflineWebViewClient(this, webView, mainActivityScope, onPageFinish = {
+                webView.visibility = View.VISIBLE
+            }) {
                 override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
                     Log.i(LOG_TAG, "Intercepting URL: $url")
 
-                    // Fix common typo that may appear from the site
+                    // Fix typo if present
                     if (url.startsWith("https://acounts.google.com") || url.startsWith("http://acounts.google.com")) {
-                        val corrected = url.replace("acounts.google.com", "accounts.google.com")
-                        openInCustomTab(corrected)
+                        launchNativeGoogleSignIn()
                         return true
                     }
 
-                    // If this is the Google OAuth sign-in, trigger native flow instead
-                    if (url.contains("accounts.google.com/o/oauth2/auth") || url.contains("accounts.google.com/signin")) {
+                    // Trigger native sign-in when the flow attempts to go to Google
+                    if (
+                        url.contains("accounts.google.com/o/oauth2") ||
+                        url.contains("accounts.google.com/signin") ||
+                        url.contains("/oauth/google") ||
+                        url.contains("/auth/google")
+                    ) {
                         launchNativeGoogleSignIn()
                         return true
                     }
 
                     return super.shouldOverrideUrlLoading(view, url)
-                }
-
-                private fun openInCustomTab(url: String) {
-                    try {
-                        androidXBrowserCustomTab(url)
-                    } catch (e: Exception) {
-                        try {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                        } catch (_: Exception) {}
-                    }
-                }
-
-                private fun androidXBrowserCustomTab(url: String) {
-                    val customTabsIntent = androidx.browser.customtabs.CustomTabsIntent.Builder()
-                        .setShareState(androidx.browser.customtabs.CustomTabsIntent.SHARE_STATE_OFF)
-                        .build()
-                    customTabsIntent.launchUrl(this@MainActivity, Uri.parse(url))
                 }
             }
 
@@ -321,7 +314,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun navigateToHome() {
-        binding?.webView?.loadUrl("https://careerpolitics.com/")
+        binding?.webView?.loadUrl("https://careerpolitics.com/enter")
     }
 
     fun handleCustomBackPressed() {
@@ -340,11 +333,12 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     // region Google Sign-In
     private fun initGoogleSignIn() {
         val webClientId = getString(R.string.default_web_client_id)
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestIdToken(webClientId)
-            .build()
-        googleSignInClient = GoogleSignIn.getClient(this, gso)
+        if (!webClientId.startsWith("REPLACE_")) {
+            gsoBuilder.requestIdToken(webClientId)
+        }
+        googleSignInClient = GoogleSignIn.getClient(this, gsoBuilder.build())
     }
 
     private fun initGoogleSignInLauncher() {
@@ -373,14 +367,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val email = account.email
         val name = account.displayName
 
-        // Deliver to web via cookie-less deep link that your site can handle
         val bridgeUrl = Uri.Builder()
             .scheme("https")
             .authority("careerpolitics.com")
             .path("/auth/google/native-bridge")
-            .appendQueryParameter("idToken", idToken)
-            .appendQueryParameter("email", email)
-            .appendQueryParameter("name", name)
+            .apply {
+                if (!idToken.isNullOrEmpty()) appendQueryParameter("idToken", idToken)
+                if (!email.isNullOrEmpty()) appendQueryParameter("email", email)
+                if (!name.isNullOrEmpty()) appendQueryParameter("name", name)
+            }
             .build()
             .toString()
 
