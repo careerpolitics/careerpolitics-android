@@ -124,7 +124,7 @@ dependencies {
     //splash
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.material)
-    implementation(libs.androidx.swiperefreshlayout)
+
 
     // Testing
     testImplementation(libs.junit)
