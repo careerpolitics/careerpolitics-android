@@ -20,6 +20,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
+        buildConfigField("String", "BASE_URL", "\"https://careerpolitics.com/\"")
+        buildConfigField("String", "USER_AGENT", "\"CareerPolitics-Native-Android\"")
     }
 
     // Build performance optimizations
@@ -58,6 +60,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     dataBinding {
@@ -86,6 +89,7 @@ dependencies {
     // Compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
@@ -120,6 +124,7 @@ dependencies {
     //splash
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.material)
+
 
     // Testing
     testImplementation(libs.junit)

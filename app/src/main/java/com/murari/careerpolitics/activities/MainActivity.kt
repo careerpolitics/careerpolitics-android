@@ -19,10 +19,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 import com.google.firebase.messaging.FirebaseMessaging
+import com.murari.careerpolitics.BuildConfig
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
@@ -34,6 +38,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -57,14 +62,19 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { !isSplashScreenReady }
 
-        // Show system bars and avoid drawing under them
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Edge-to-edge
+        enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
-        binding?.let {
-            setContentView(it.root)
+        binding?.let { binding ->
+            setContentView(binding.root)
             configureSystemBarsAppearance()
+
+            // Apply system bar insets as padding to avoid overlap
+            applySystemBarInsets(binding.root)
+
+            val webView = binding.webView!!
 
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
@@ -98,7 +108,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         controller.isAppearanceLightNavigationBars = !isDarkMode
     }
 
-    
+    private fun applySystemBarInsets(target: View) {
+        ViewCompat.setOnApplyWindowInsetsListener(target) { v, insets ->
+            val sysBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updatePadding(left = sysBars.left, top = sysBars.top, right = sysBars.right, bottom = sysBars.bottom)
+            insets
+        }
+    }
 
     private fun initGalleryLauncher() {
         galleryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -197,21 +213,23 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             with(webView.settings) {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                userAgentString = "DEV-Native-android"
+                mediaPlaybackRequiresUserGesture = false
+                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                userAgentString = BuildConfig.USER_AGENT
             }
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
+            webView.addJavascriptInterface(webViewBridge, "AndroidWebViewBridge")
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
             }
 
             webView.webViewClient = webViewClient as WebViewClient
-            webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
+            webView.webChromeClient = CustomWebChromeClient(BuildConfig.BASE_URL, this)
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
 
-            // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh
-            setupLeftEdgeSwipeForSidebar(webView)
+
         }
     }
 
@@ -274,7 +292,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun navigateToHome() {
-        binding?.webView?.loadUrl("https://careerpolitics.com/")
+        binding?.webView?.loadUrl(BuildConfig.BASE_URL)
     }
 
     fun handleCustomBackPressed() {

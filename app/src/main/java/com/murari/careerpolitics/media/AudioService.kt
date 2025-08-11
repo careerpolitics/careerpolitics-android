@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Binder
@@ -54,6 +55,14 @@ class AudioService : LifecycleService() {
 
     private val binder = AudioServiceBinder()
 
+    private val noisyReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                pause()
+            }
+        }
+    }
+
     override fun onBind(intent: Intent): IBinder {
         super.onBind(intent)
         val newPodcastUrl = intent.getStringExtra(ARG_PODCAST_URL)
@@ -67,6 +76,17 @@ class AudioService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
 
+        // Create notification channel for playback
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            val channel = android.app.NotificationChannel(
+                PLAYBACK_CHANNEL_ID,
+                getString(R.string.app_name),
+                android.app.NotificationManager.IMPORTANCE_LOW
+            )
+            mgr.createNotificationChannel(channel)
+        }
+
         player = ExoPlayer.Builder(this).build().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -78,6 +98,19 @@ class AudioService : LifecycleService() {
 
         setupNotificationManager()
         setupMediaSession()
+
+        registerReceiver(noisyReceiver, IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(noisyReceiver) } catch (_: Exception) {}
+        playerNotificationManager?.setPlayer(null)
+        player?.release()
+        player = null
+        mediaSession?.isActive = false
+        mediaSession?.release()
+        mediaSession = null
     }
 
     private fun setupNotificationManager() {
@@ -86,12 +119,21 @@ class AudioService : LifecycleService() {
             NOTIFICATION_ID,
             PLAYBACK_CHANNEL_ID
         )
+            .setSmallIconResourceId(R.drawable.ic_notification)
             .setMediaDescriptionAdapter(object : PlayerNotificationManager.MediaDescriptionAdapter {
                 override fun getCurrentContentTitle(player: Player): String {
                     return episodeName ?: getString(R.string.app_name)
                 }
 
-                override fun createCurrentContentIntent(player: Player): PendingIntent? = null
+                override fun createCurrentContentIntent(player: Player): PendingIntent? {
+                    return PendingIntent.getActivity(
+                        this@AudioService,
+                        0,
+                        Intent(this@AudioService, com.murari.careerpolitics.activities.MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                }
 
                 override fun getCurrentContentText(player: Player): String? {
                     return podcastName ?: getString(R.string.playback_channel_description)
@@ -130,6 +172,15 @@ class AudioService : LifecycleService() {
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, podcastName)
                 .build()
             setMetadata(metadata)
+            isActive = true
+            setSessionActivity(
+                PendingIntent.getActivity(
+                    this@AudioService,
+                    0,
+                    Intent(this@AudioService, com.murari.careerpolitics.activities.MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            )
         }
         playerNotificationManager?.setMediaSessionToken(mediaSession!!.sessionToken)
     }
@@ -144,11 +195,13 @@ class AudioService : LifecycleService() {
             seekTo(seconds)
         }
         player?.playWhenReady = true
+        playerNotificationManager?.invalidate()
     }
 
     @MainThread
     fun pause() {
         player?.playWhenReady = false
+        stopForeground(false)
     }
 
     @MainThread
@@ -178,6 +231,14 @@ class AudioService : LifecycleService() {
         episodeName = epName
         podcastName = pdName
         imageUrl = url
+        // Update media session metadata and refresh notification
+        mediaSession?.setMetadata(
+            MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, episodeName)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, podcastName)
+                .build()
+        )
+        playerNotificationManager?.invalidate()
     }
 
     @MainThread
@@ -189,6 +250,13 @@ class AudioService : LifecycleService() {
     @MainThread
     private fun preparePlayer() {
         player?.playWhenReady = false
+        // Ensure media session reflects latest metadata on new content
+        mediaSession?.setMetadata(
+            MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, episodeName)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, podcastName)
+                .build()
+        )
         currentPodcastUrl?.let { url ->
             val streamUri = Uri.parse(url)
             val dataSourceFactory = DefaultDataSource.Factory(this)
