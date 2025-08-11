@@ -19,8 +19,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
@@ -57,14 +60,17 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { !isSplashScreenReady }
 
-        // Show system bars and avoid drawing under them
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Edge-to-edge
+        enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
-        binding?.let {
-            setContentView(it.root)
+        binding?.let { binding ->
+            setContentView(binding.root)
             configureSystemBarsAppearance()
+
+            // Apply system bar insets as padding to avoid overlap
+            applySystemBarInsets(binding.root)
 
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
@@ -98,7 +104,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         controller.isAppearanceLightNavigationBars = !isDarkMode
     }
 
-    
+    private fun applySystemBarInsets(target: View) {
+        ViewCompat.setOnApplyWindowInsetsListener(target) { v, insets ->
+            val sysBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updatePadding(left = sysBars.left, top = sysBars.top, right = sysBars.right, bottom = sysBars.bottom)
+            insets
+        }
+    }
 
     private fun initGalleryLauncher() {
         galleryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->

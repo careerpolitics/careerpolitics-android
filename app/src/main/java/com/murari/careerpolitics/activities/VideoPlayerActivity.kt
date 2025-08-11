@@ -16,6 +16,10 @@ import com.murari.careerpolitics.events.VideoPlayerTickEvent
 import org.greenrobot.eventbus.EventBus
 import java.util.*
 import androidx.core.net.toUri
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
 
@@ -25,7 +29,17 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
     override fun layout(): Int = R.layout.activity_video_player
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // Apply insets to avoid gesture/navigation overlap for controls
+        binding?.playerView?.let { playerView ->
+            ViewCompat.setOnApplyWindowInsetsListener(playerView) { v, insets ->
+                val sysBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                v.updatePadding(left = sysBars.left, top = sysBars.top, right = sysBars.right, bottom = sysBars.bottom)
+                insets
+            }
+        }
 
         val videoUrl = intent.getStringExtra(ARG_VIDEO_URL)
         val videoTime = intent.getStringExtra(ARG_VIDEO_TIME)?.toLongOrNull() ?: 0L
