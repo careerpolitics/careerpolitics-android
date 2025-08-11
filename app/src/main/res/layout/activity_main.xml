@@ -4,46 +4,19 @@
 
     <data></data>
 
-    <androidx.drawerlayout.widget.DrawerLayout
-        android:id="@+id/drawer_layout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <FrameLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-                android:id="@+id/swipe_refresh"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
-
-                <WebView
-                    android:id="@+id/web_view"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:visibility="visible" />
-
-            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-            <!-- Invisible left-edge gesture target to open the web sidebar -->
-            <View
-                android:id="@+id/edge_swipe_target"
-                android:layout_width="24dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="start"
-                android:background="@android:color/transparent" />
-
-        </FrameLayout>
-
-        <!-- Optional: NavigationView stub (kept transparent) -->
-        <com.google.android.material.navigation.NavigationView
-            android:id="@+id/nav_view"
-            android:layout_width="0dp"
+        <WebView
+            android:id="@+id/web_view"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_gravity="start"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            android:visibility="visible"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
-    </androidx.drawerlayout.widget.DrawerLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>
