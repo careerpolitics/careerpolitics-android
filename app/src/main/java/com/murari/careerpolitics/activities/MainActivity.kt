@@ -210,6 +210,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 mediaPlaybackRequiresUserGesture = false
+                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 userAgentString = "DEV-Native-android"
             }
 
@@ -220,7 +221,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             }
 
             webView.webViewClient = webViewClient as WebViewClient
-            webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
+            webView.webChromeClient = object : CustomWebChromeClient("https://careerpolitics.com/", this) {}
+            webView.webChromeClient?.let { }
+            webView.setWebChromeClient(object : android.webkit.WebChromeClient() {
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                    // Grant audio capture/playback permissions to the page
+                    request.grant(request.resources)
+                }
+            })
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
 
             // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh

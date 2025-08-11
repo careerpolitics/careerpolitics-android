@@ -9,7 +9,7 @@ import com.google.gson.Gson
 import com.murari.careerpolitics.activities.VideoPlayerActivity
 import com.murari.careerpolitics.events.VideoPlayerPauseEvent
 import com.murari.careerpolitics.events.VideoPlayerTickEvent
-import com.murari.careerpolitics.media.AudioService
+// import removed: native audio service no longer used
 import com.murari.careerpolitics.webclients.CustomWebViewClient
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -21,18 +21,14 @@ class AndroidWebViewBridge(private val context: Context) {
     var webViewClient: CustomWebViewClient? = null
 
     private var timer: Timer? = null
-    private var audioService: AudioService? = null
+    // private var audioService: AudioService? = null
 
     private val gson = Gson()
 
+    // Native audio service connection is disabled; WebView manages audio itself
     private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            audioService = (service as? AudioService.AudioServiceBinder)?.service
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            audioService = null
-        }
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {}
+        override fun onServiceDisconnected(name: ComponentName?) {}
     }
 
     // Logging from JavaScript
@@ -74,19 +70,11 @@ class AndroidWebViewBridge(private val context: Context) {
             return
         }
 
+        // Let the web app handle podcast playback natively; we only relay time ticks for UI if needed
         when (map["action"]) {
-            "load"      -> loadPodcast(map["url"])
-            "play"      -> audioService?.play(map["url"], map["seconds"])
-            "pause"     -> audioService?.pause()
-            "seek"      -> audioService?.seekTo(map["seconds"])
-            "rate"      -> audioService?.rate(map["rate"])
-            "muted"     -> audioService?.mute(map["muted"])
-            "volume"    -> audioService?.volume(map["volume"])
-            "metadata"  -> audioService?.loadMetadata(
-                map["episodeName"], map["podcastName"], map["imageUrl"]
-            )
+            "load"      -> loadPodcast(map["url"]) // start tick timer only
             "terminate" -> terminatePodcast()
-            else        -> logError("Podcast", "Unknown action: ${map["action"]}")
+            else        -> Unit
         }
     }
 
@@ -109,7 +97,7 @@ class AndroidWebViewBridge(private val context: Context) {
     private fun playVideo(url: String?, seconds: String?) {
         if (url.isNullOrEmpty()) return
 
-        audioService?.pause()
+        // no-op on native audio; ensure our tick timer is reset
         timer?.cancel()
 
         // Launch video player activity
@@ -123,17 +111,8 @@ class AndroidWebViewBridge(private val context: Context) {
     private fun loadPodcast(url: String?) {
         if (url.isNullOrEmpty()) return
 
-        // Start audio service as foreground service, then bind
-        AudioService.newIntent(context, url).also { intent ->
-            try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-            } catch (_: Exception) { /* best effort */ }
-            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-        }
+        // We are not starting any native audio; WebView manages playback itself
+        // We only start a timer to forward ticks back to the Web UI, if needed
 
         // Start timer to send playback ticks to WebView
         timer?.cancel()
@@ -149,30 +128,12 @@ class AndroidWebViewBridge(private val context: Context) {
         timer?.cancel()
         timer = null
 
-        audioService?.pause()
-        try {
-            context.unbindService(connection)
-        } catch (_: IllegalArgumentException) { /* already unbound */ }
-
-        context.stopService(Intent(context, AudioService::class.java))
-        audioService = null
+        // No native audio; just stop our timer
     }
 
     private fun podcastTimeUpdate() {
-        audioService?.let { service ->
-            val time = service.currentTimeInSec() / 1000
-            val duration = service.durationInSec() / 1000
-
-            if (duration < 0) {
-                webViewClient?.sendBridgeMessage("podcast", mapOf("action" to "init"))
-            } else {
-                webViewClient?.sendBridgeMessage("podcast", mapOf(
-                    "action" to "tick",
-                    "duration" to duration,
-                    "currentTime" to time
-                ))
-            }
-        }
+        // Without native player, we cannot compute real time; ask the WebView to initialize itself
+        webViewClient?.sendBridgeMessage("podcast", mapOf("action" to "init"))
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
