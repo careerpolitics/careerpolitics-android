@@ -38,6 +38,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.murari.careerpolitics.core.sidebar.SidebarController
+import com.murari.careerpolitics.core.gesture.EdgeSwipeHandler
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -45,6 +47,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
+    private val sidebarController = SidebarController()
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
     private var isSplashScreenReady = false
@@ -72,6 +75,19 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             // Apply system bar insets as padding to avoid overlap
             applySystemBarInsets(binding.root)
+
+            // Setup pull-to-refresh
+            val swipeRefresh = binding.root.findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipe_refresh)
+            val webView = binding.webView!!
+            swipeRefresh.setOnRefreshListener { webView.reload() }
+            webView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                swipeRefresh.isEnabled = scrollY == 0
+            }
+
+            // Setup left-edge swipe to open web sidebar
+            binding.root.findViewById<View>(R.id.edge_swipe_target)?.let { target ->
+                EdgeSwipeHandler(target) { sidebarController.requestOpen(webView) }
+            }
 
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
@@ -220,18 +236,20 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
+                sidebarController.onPageLoaded(webView)
+                binding.root.findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipe_refresh)?.isRefreshing = false
             }
 
             webView.webViewClient = webViewClient as WebViewClient
             webView.webChromeClient = CustomWebChromeClient(BuildConfig.BASE_URL, this)
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
 
-            // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh
-            setupLeftEdgeSwipeForSidebar(webView)
+
         }
     }
 
-    private fun setupLeftEdgeSwipeForSidebar(webView: WebView) {
+    // removed: replaced by EdgeSwipeHandler overlaid edge view
+    /* private fun setupLeftEdgeSwipeForSidebar(webView: WebView) {
         val edgeWidthPx = (24 * webView.resources.displayMetrics.density).toInt()
         val triggerDxPx = (30 * webView.resources.displayMetrics.density).toInt()
         var downX = 0f
@@ -272,7 +290,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 else -> false
             }
         }
-    }
+    } */
 
     private fun openWebSidebar(webView: WebView) {
         val js = """
