@@ -209,6 +209,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             with(webView.settings) {
                 javaScriptEnabled = true
                 domStorageEnabled = true
+                mediaPlaybackRequiresUserGesture = false
                 userAgentString = "DEV-Native-android"
             }
 

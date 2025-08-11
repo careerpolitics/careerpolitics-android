@@ -123,8 +123,15 @@ class AndroidWebViewBridge(private val context: Context) {
     private fun loadPodcast(url: String?) {
         if (url.isNullOrEmpty()) return
 
-        // Start audio service
+        // Start audio service as foreground service, then bind
         AudioService.newIntent(context, url).also { intent ->
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) { /* best effort */ }
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }
 
