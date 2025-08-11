@@ -31,6 +31,7 @@ open class CustomWebViewClient(
         "api.twitter.com/oauth",
         "api.twitter.com/login/error",
         "api.twitter.com/account/login_verification",
+        // Removed accounts.google.com so we can handle it at a higher layer
         "github.com/login",
         "github.com/sessions/"
     )

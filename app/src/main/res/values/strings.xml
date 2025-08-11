@@ -8,4 +8,7 @@
     <string name="download_forem_app">Download Forem App</string>
     <string name="open_forem_app">Open Forem App</string>
     <string name="forem_dialog_content_description">Show Forem app promotion dialog</string>
+    
+    <!-- Google Sign-In web client ID (replace with your real value from Firebase console if needed) -->
+    <string name="default_web_client_id">REPLACE_WITH_YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</string>
 </resources>

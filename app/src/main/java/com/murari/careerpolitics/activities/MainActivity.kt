@@ -34,6 +34,11 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -49,6 +54,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) initializePushNotifications()
         }
+
+    // Google Sign-In
+    private var googleSignInClient: GoogleSignInClient? = null
+    private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
 
     override fun layout(): Int = R.layout.activity_main
 
@@ -69,6 +78,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
             }
+
+            // Initialize native google sign-in
+            initGoogleSignIn()
+            initGoogleSignInLauncher()
 
             setWebViewSettings()
 
@@ -202,8 +215,42 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
 
-            webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
-                webView.visibility = View.VISIBLE
+            webViewClient = object : OfflineWebViewClient(this, webView, mainActivityScope) {
+                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                    Log.i(LOG_TAG, "Intercepting URL: $url")
+
+                    // Fix common typo that may appear from the site
+                    if (url.startsWith("https://acounts.google.com") || url.startsWith("http://acounts.google.com")) {
+                        val corrected = url.replace("acounts.google.com", "accounts.google.com")
+                        openInCustomTab(corrected)
+                        return true
+                    }
+
+                    // If this is the Google OAuth sign-in, trigger native flow instead
+                    if (url.contains("accounts.google.com/o/oauth2/auth") || url.contains("accounts.google.com/signin")) {
+                        launchNativeGoogleSignIn()
+                        return true
+                    }
+
+                    return super.shouldOverrideUrlLoading(view, url)
+                }
+
+                private fun openInCustomTab(url: String) {
+                    try {
+                        androidXBrowserCustomTab(url)
+                    } catch (e: Exception) {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                private fun androidXBrowserCustomTab(url: String) {
+                    val customTabsIntent = androidx.browser.customtabs.CustomTabsIntent.Builder()
+                        .setShareState(androidx.browser.customtabs.CustomTabsIntent.SHARE_STATE_OFF)
+                        .build()
+                    customTabsIntent.launchUrl(this@MainActivity, Uri.parse(url))
+                }
             }
 
             webView.webViewClient = webViewClient as WebViewClient
@@ -289,6 +336,57 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             Intent(Intent.ACTION_PICK).apply { type = "image/*" }
         )
     }
+
+    // region Google Sign-In
+    private fun initGoogleSignIn() {
+        val webClientId = getString(R.string.default_web_client_id)
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestIdToken(webClientId)
+            .build()
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+    }
+
+    private fun initGoogleSignInLauncher() {
+        googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account: GoogleSignInAccount = task.getResult(ApiException::class.java)
+                onGoogleSignedIn(account)
+            } catch (e: ApiException) {
+                Log.e(LOG_TAG, "Google sign-in failed: ${e.statusCode}", e)
+            }
+        }
+    }
+
+    private fun launchNativeGoogleSignIn() {
+        val intent = googleSignInClient?.signInIntent
+        if (intent != null) {
+            googleSignInLauncher.launch(intent)
+        } else {
+            Log.e(LOG_TAG, "GoogleSignInClient not initialized")
+        }
+    }
+
+    private fun onGoogleSignedIn(account: GoogleSignInAccount) {
+        val idToken = account.idToken
+        val email = account.email
+        val name = account.displayName
+
+        // Deliver to web via cookie-less deep link that your site can handle
+        val bridgeUrl = Uri.Builder()
+            .scheme("https")
+            .authority("careerpolitics.com")
+            .path("/auth/google/native-bridge")
+            .appendQueryParameter("idToken", idToken)
+            .appendQueryParameter("email", email)
+            .appendQueryParameter("name", name)
+            .build()
+            .toString()
+
+        binding?.webView?.loadUrl(bridgeUrl)
+    }
+    // endregion
 
     companion object {
         private const val LOG_TAG = "MainActivity"
