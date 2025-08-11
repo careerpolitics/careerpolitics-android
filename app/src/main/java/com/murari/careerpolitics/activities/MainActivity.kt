@@ -26,6 +26,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 
 import com.google.firebase.messaging.FirebaseMessaging
+import com.murari.careerpolitics.BuildConfig
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.util.AndroidWebViewBridge
@@ -211,24 +212,18 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 domStorageEnabled = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                userAgentString = "DEV-Native-android"
+                userAgentString = BuildConfig.USER_AGENT
             }
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
+            webView.addJavascriptInterface(webViewBridge, "AndroidWebViewBridge")
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
             }
 
             webView.webViewClient = webViewClient as WebViewClient
-            webView.webChromeClient = object : CustomWebChromeClient("https://careerpolitics.com/", this) {}
-            webView.webChromeClient?.let { }
-            webView.setWebChromeClient(object : android.webkit.WebChromeClient() {
-                override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
-                    // Grant audio capture/playback permissions to the page
-                    request.grant(request.resources)
-                }
-            })
+            webView.webChromeClient = CustomWebChromeClient(BuildConfig.BASE_URL, this)
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
 
             // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh
@@ -295,7 +290,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun navigateToHome() {
-        binding?.webView?.loadUrl("https://careerpolitics.com/")
+        binding?.webView?.loadUrl(BuildConfig.BASE_URL)
     }
 
     fun handleCustomBackPressed() {
