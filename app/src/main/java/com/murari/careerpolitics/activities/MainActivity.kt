@@ -21,6 +21,9 @@ import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
@@ -57,13 +60,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { !isSplashScreenReady }
 
-        // Show system bars and avoid drawing under them
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Enable edge-to-edge content and transparent system bars
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
 
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
         binding?.let {
             setContentView(it.root)
+            applyEdgeToEdgeInsets()
             configureSystemBarsAppearance()
 
             onBackPressedDispatcher.addCallback(this) {
@@ -98,7 +104,19 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         controller.isAppearanceLightNavigationBars = !isDarkMode
     }
 
-    
+    private fun applyEdgeToEdgeInsets() {
+        val rootView = binding?.root ?: return
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updatePadding(
+                left = systemBars.left,
+                top = systemBars.top,
+                right = systemBars.right,
+                bottom = systemBars.bottom
+            )
+            insets
+        }
+    }
 
     private fun initGalleryLauncher() {
         galleryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
