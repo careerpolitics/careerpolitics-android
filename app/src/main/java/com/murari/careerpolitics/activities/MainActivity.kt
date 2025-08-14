@@ -13,6 +13,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.graphics.Color
+import android.webkit.CookieManager
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -233,6 +234,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 userAgentString = "DEV-Native-android"
+            }
+
+            // Ensure cookies are accepted so backend session gets established after Google sign-in bridge
+            runCatching {
+                val cookieManager = CookieManager.getInstance()
+                cookieManager.setAcceptCookie(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    cookieManager.setAcceptThirdPartyCookies(webView, true)
+                }
             }
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
