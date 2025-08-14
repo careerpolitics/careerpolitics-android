@@ -103,6 +103,9 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
 
+    // Google Sign-In
+    implementation(libs.play.services.auth)
+
     // Pusher Push Notifications
     implementation(libs.push.notifications.android)
 

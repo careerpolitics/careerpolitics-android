@@ -37,6 +37,11 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
@@ -52,6 +57,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) initializePushNotifications()
         }
+
+    // Google Sign-In
+    private var googleSignInClient: GoogleSignInClient? = null
+    private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
 
     override fun layout(): Int = R.layout.activity_main
 
@@ -75,6 +84,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             onBackPressedDispatcher.addCallback(this) {
                 handleCustomBackPressed()
             }
+
+            // Initialize native google sign-in
+            initGoogleSignIn()
+            initGoogleSignInLauncher()
 
             setWebViewSettings()
 
@@ -174,13 +187,17 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                     Log.e(LOG_TAG, "Error loading intent URL: ${e.message}")
                 }
             }
-            webViewClient.observeNetwork()
+            if (::webViewClient.isInitialized) {
+                webViewClient.observeNetwork()
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
-        webViewClient.unobserveNetwork()
+        if (::webViewClient.isInitialized) {
+            webViewClient.unobserveNetwork()
+        }
     }
 
     override fun onDestroy() {
@@ -220,8 +237,31 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
 
-            webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
+            webViewClient = object : OfflineWebViewClient(this, webView, mainActivityScope, onPageFinish = {
                 webView.visibility = View.VISIBLE
+            }) {
+                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                    Log.i(LOG_TAG, "Intercepting URL: $url")
+
+                    // Fix typo if present
+                    if (url.startsWith("https://acounts.google.com") || url.startsWith("http://acounts.google.com")) {
+                        launchNativeGoogleSignIn()
+                        return true
+                    }
+
+                    // Trigger native sign-in when the flow attempts to go to Google
+                    if (
+                        url.contains("accounts.google.com/o/oauth2") ||
+                        url.contains("accounts.google.com/signin") ||
+                        url.contains("/oauth/google") ||
+                        url.contains("/auth/google")
+                    ) {
+                        launchNativeGoogleSignIn()
+                        return true
+                    }
+
+                    return super.shouldOverrideUrlLoading(view, url)
+                }
             }
 
             webView.webViewClient = webViewClient as WebViewClient
@@ -292,7 +332,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun navigateToHome() {
-        binding?.webView?.loadUrl("https://careerpolitics.com/")
+        binding?.webView?.loadUrl("https://careerpolitics.com/enter")
     }
 
     fun handleCustomBackPressed() {
@@ -307,6 +347,59 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             Intent(Intent.ACTION_PICK).apply { type = "image/*" }
         )
     }
+
+    // region Google Sign-In
+    private fun initGoogleSignIn() {
+        val webClientId = getString(R.string.default_web_client_id)
+        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+        if (!webClientId.startsWith("REPLACE_")) {
+            gsoBuilder.requestIdToken(webClientId)
+        }
+        googleSignInClient = GoogleSignIn.getClient(this, gsoBuilder.build())
+    }
+
+    private fun initGoogleSignInLauncher() {
+        googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account: GoogleSignInAccount = task.getResult(ApiException::class.java)
+                onGoogleSignedIn(account)
+            } catch (e: ApiException) {
+                Log.e(LOG_TAG, "Google sign-in failed: ${e.statusCode}", e)
+            }
+        }
+    }
+
+    private fun launchNativeGoogleSignIn() {
+        val intent = googleSignInClient?.signInIntent
+        if (intent != null) {
+            googleSignInLauncher.launch(intent)
+        } else {
+            Log.e(LOG_TAG, "GoogleSignInClient not initialized")
+        }
+    }
+
+    private fun onGoogleSignedIn(account: GoogleSignInAccount) {
+        val idToken = account.idToken
+        val email = account.email
+        val name = account.displayName
+
+        val bridgeUrl = Uri.Builder()
+            .scheme("https")
+            .authority("careerpolitics.com")
+            .path("/auth/google/native-bridge")
+            .apply {
+                if (!idToken.isNullOrEmpty()) appendQueryParameter("idToken", idToken)
+                if (!email.isNullOrEmpty()) appendQueryParameter("email", email)
+                if (!name.isNullOrEmpty()) appendQueryParameter("name", name)
+            }
+            .build()
+            .toString()
+
+        binding?.webView?.loadUrl(bridgeUrl)
+    }
+    // endregion
 
     companion object {
         private const val LOG_TAG = "MainActivity"
