@@ -8,17 +8,16 @@
         <item name="colorSecondary">@color/purple_700</item>
         <item name="colorOnSecondary">@color/white</item>
 
-        <!-- Status bar to match theme -->
-        <item name="android:statusBarColor">@color/white</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <!-- Edge-to-edge: transparent system bars -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
 
-        <!-- Navigation bar to match theme -->
-        <item name="android:navigationBarColor">@color/white</item>
-        <item name="android:windowLightNavigationBar">true</item>
-
-        <!-- Edge-to-edge support -->
+        <!-- Draw into cutout -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-        <item name="android:fitsSystemWindows">false</item>
+
+        <!-- Optional: disable forced contrast for transparent bars (API 29+) -->
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
     </style>
 
     <!-- Splash screen theme (Android 12+) -->
