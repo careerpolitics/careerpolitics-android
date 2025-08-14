@@ -10,5 +10,5 @@
     <string name="forem_dialog_content_description">Show Forem app promotion dialog</string>
     
     <!-- Google Sign-In web client ID (replace with your real value from Firebase console if needed) -->
-    <string name="default_web_client_id">REPLACE_WITH_YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</string>
+    <string name="default_web_client_id">849774934802-9g5r94ng5i71c7pkumodvefncj2om30e.apps.googleusercontent.com</string>
 </resources>

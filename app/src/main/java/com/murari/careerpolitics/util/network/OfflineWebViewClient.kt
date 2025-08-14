@@ -17,7 +17,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.json.JSONObject
 
-class OfflineWebViewClient(
+open class OfflineWebViewClient(
     private val context: Context,
     private val view: WebView,
     private val coroutineScope: CoroutineScope,
