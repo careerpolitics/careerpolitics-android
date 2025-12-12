@@ -19,21 +19,6 @@ android {
         versionName = "3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        multiDexEnabled = true
-    }
-
-    // Build performance optimizations
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    kotlinOptions {
-        jvmTarget = "21"
-        freeCompilerArgs += listOf(
-            "-opt-in=kotlin.RequiresOptIn",
-            "-Xjvm-default=all"
-        )
     }
 
     buildTypes {
