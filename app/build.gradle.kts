@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.murari.careerpolitics"
-    compileSdk = 36
+        compileSdk = 36
 
     defaultConfig {
         applicationId = "com.murari.careerpolitics"
