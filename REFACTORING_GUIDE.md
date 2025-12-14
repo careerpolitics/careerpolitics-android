@@ -111,7 +111,7 @@ key.password=YOUR_KEY_PASSWORD
 ```kotlin
 object AppConfig {
     const val compileSdk = 36
-    const val minSdk = 27
+    const val minSdk = 29
     const val targetSdk = 36
     const val versionCode = 30000 // 3.0.0
 }
@@ -576,7 +576,7 @@ jobs:
 - [ ] Unit tests passing
 - [ ] UI tests passing (if applicable)
 - [ ] Manual testing on 3+ devices
-- [ ] Tested on Android 8.1 (minSdk 27)
+- [ ] Tested on Android 8.1 (minSdk 31)
 - [ ] Tested on latest Android version
 - [ ] Tested push notifications
 - [ ] Tested deep links

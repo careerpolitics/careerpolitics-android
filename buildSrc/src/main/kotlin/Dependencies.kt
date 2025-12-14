@@ -12,7 +12,7 @@
 
 object AppConfig {
     const val compileSdk = 36
-    const val minSdk = 27
+    const val minSdk = 29
     const val targetSdk = 36
     
     // Version info managed here for easy bumping
