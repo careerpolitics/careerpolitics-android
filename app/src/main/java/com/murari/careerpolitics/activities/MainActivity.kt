@@ -7,7 +7,8 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import com.murari.careerpolitics.config.AppConfig
+import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebView
@@ -87,7 +88,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             initGalleryLauncher()
 
             mainActivityScope.launch {
-                delay(100) // allow for splash transition
+                delay(AppConfig.SPLASH_SCREEN_DELAY_MS)
                 requestNotificationPermissionIfNeeded()
                 isSplashScreenReady = true
             }
@@ -145,19 +146,24 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private fun initializePushNotifications() {
         try {
-            FirebaseMessaging.getInstance().subscribeToTopic("all")
-            PushNotifications.start(applicationContext, "923a6e14-cca6-47dd-b98e-8145f7724dd7")
-            PushNotifications.addDeviceInterest("broadcast")
-            Log.d(LOG_TAG, "Push Notifications initialized")
+            // Subscribe to Firebase topic using config
+            FirebaseMessaging.getInstance().subscribeToTopic(AppConfig.firebaseBroadcastTopic)
+
+            // Initialize Pusher with config-driven instance ID
+            PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
+            PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
+
+            Logger.d(LOG_TAG, "Push Notifications initialized")
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "Error initializing push notifications: ${e.message}", e)
+            Logger.e(LOG_TAG, "Error initializing push notifications", e)
+
             // Fallback: try to initialize without Firebase if it fails
             try {
-                PushNotifications.start(applicationContext, "923a6e14-cca6-47dd-b98e-8145f7724dd7")
-                PushNotifications.addDeviceInterest("broadcast")
-                Log.d(LOG_TAG, "Push Notifications initialized (fallback)")
+                PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
+                PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
+                Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
             } catch (fallbackException: Exception) {
-                Log.e(LOG_TAG, "Fallback push notification initialization failed: ${fallbackException.message}", fallbackException)
+                Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)
             }
         }
     }
@@ -167,11 +173,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         binding?.webView?.let { webView ->
             intent.extras?.getString("url")?.let { targetUrl ->
                 try {
-                    if (targetUrl.toUri().host?.contains("careerpolitics.com") == true) {
+                    // Validate URL matches our base domain for security
+                    if (AppConfig.isValidAppUrl(targetUrl)) {
                         webView.loadUrl(targetUrl)
+                    } else {
+                        Logger.w(LOG_TAG, "Rejected URL from intent: $targetUrl (domain mismatch)")
                     }
                 } catch (e: Exception) {
-                    Log.e(LOG_TAG, "Error loading intent URL: ${e.message}")
+                    Logger.e(LOG_TAG, "Error loading intent URL", e)
                 }
             }
             webViewClient.observeNetwork()
@@ -211,21 +220,32 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->
-            WebView.setWebContentsDebuggingEnabled(true)
+            // Enable remote debugging only in debug/staging builds
+            WebView.setWebContentsDebuggingEnabled(AppConfig.enableWebViewDebugging)
+
             with(webView.settings) {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                userAgentString = "DEV-Native-android"
+                javaScriptEnabled = AppConfig.enableJavaScript
+                domStorageEnabled = AppConfig.enableDomStorage
+                userAgentString = AppConfig.userAgent
+
+                // Additional security settings
+                allowFileAccess = false // Prevent file:// URL access
+                allowContentAccess = true // Allow content:// URLs for image picking
+                databaseEnabled = true // Required for DOM storage
+
+                // Performance settings
+                cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
             }
 
-            webView.addJavascriptInterface(webViewBridge, "AndroidBridge")
+            webView.addJavascriptInterface(webViewBridge, "Android")
 
             webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
                 webView.visibility = View.VISIBLE
             }
 
             webView.webViewClient = webViewClient as WebViewClient
-            webView.webChromeClient = CustomWebChromeClient("https://careerpolitics.com/", this)
+            webView.webChromeClient = CustomWebChromeClient(AppConfig.baseUrl, this)
             webViewBridge.webViewClient = webViewClient as CustomWebViewClient
 
             // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh
@@ -234,8 +254,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun setupLeftEdgeSwipeForSidebar(webView: WebView) {
-        val edgeWidthPx = (24 * webView.resources.displayMetrics.density).toInt()
-        val triggerDxPx = (30 * webView.resources.displayMetrics.density).toInt()
+        val edgeWidthPx = (AppConfig.EDGE_SWIPE_WIDTH_DP * webView.resources.displayMetrics.density).toInt()
+        val triggerDxPx = (AppConfig.EDGE_SWIPE_TRIGGER_DP * webView.resources.displayMetrics.density).toInt()
         var downX = 0f
         var downY = 0f
         var eligible = false
@@ -292,7 +312,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun navigateToHome() {
-        binding?.webView?.loadUrl("https://careerpolitics.com/")
+        binding?.webView?.loadUrl(AppConfig.baseUrl)
     }
 
     fun handleCustomBackPressed() {

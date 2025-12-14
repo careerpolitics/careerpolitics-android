@@ -1,5 +1,7 @@
 package com.murari.careerpolitics.util.network
 
+import com.murari.careerpolitics.config.AppConfig
+import com.murari.careerpolitics.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -10,6 +12,8 @@ typealias NetworkStatusCallback = (isOnline: Boolean) -> Unit
 
 object NetworkUtils {
 
+    private const val LOG_TAG = "NetworkUtils"
+
     /**
      * Checks if the device is online by attempting to connect to a known domain.
      * Uses a timeout to avoid hanging indefinitely.
@@ -18,16 +22,15 @@ object NetworkUtils {
      */
     suspend fun isOnline(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val timeout = 1500
-            val address = InetSocketAddress("careerpolitics.com", 80)
+            val address = InetSocketAddress(AppConfig.baseDomain, 80)
 
             Socket().use { socket ->
-                socket.connect(address, timeout)
+                socket.connect(address, AppConfig.networkCheckTimeout)
             }
 
             true
         } catch (e: IOException) {
-            // Log.e("NetworkUtils", "Connectivity check failed", e) // Optional logging
+            Logger.d(LOG_TAG, "Connectivity check failed: ${e.message}")
             false
         }
     }

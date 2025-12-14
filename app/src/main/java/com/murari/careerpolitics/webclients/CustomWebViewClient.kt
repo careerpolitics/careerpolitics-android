@@ -4,7 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
-import android.util.Log
+import com.murari.careerpolitics.config.AppConfig
+import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.*
 import androidx.browser.customtabs.CustomTabsIntent
@@ -26,8 +27,13 @@ open class CustomWebViewClient(
     private val onPageFinish: () -> Unit
 ) : WebViewClient() {
 
+    companion object {
+        private const val LOG_TAG = "CustomWebViewClient"
+    }
+
+    // URLs that should NOT be opened in external browser (OAuth flows, internal pages)
     private val overrideUrlList = listOf(
-        "careerpolitics",
+        AppConfig.baseDomain, // Our base domain
         "api.twitter.com/oauth",
         "api.twitter.com/login/error",
         "api.twitter.com/account/login_verification",
@@ -53,27 +59,26 @@ open class CustomWebViewClient(
                 if (!registeredUserNotifications) {
                     PushNotifications.addDeviceInterest("user-notifications-$userId")
                     registeredUserNotifications = true
+                    Logger.d(LOG_TAG, "Registered device for user-$userId notifications")
                 }
             } catch (e: Exception) {
-                Log.e("WebViewClient", "Error parsing user ID: $result", e)
+                Logger.d(LOG_TAG, "Could not parse user ID from body data-user attribute")
             }
         }
         super.doUpdateVisitedHistory(view, url, isReload)
     }
 
     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-        Log.i("WebViewClient", "Intercepting URL: $url")
+        Logger.d(LOG_TAG, "Intercepting URL: $url")
 
-        if (url == "https://careerpolitics.com/enter") {
+        // Clear cache/cookies on specific routes (e.g., login/logout)
+        if (AppConfig.clearCacheRoutes.any { url.startsWith(it) }) {
+            Logger.d(LOG_TAG, "Clearing cache for route: $url")
             view.clearCache(true)
             view.clearFormData()
             view.clearHistory()
             CookieManager.getInstance().apply {
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP) {
-                    removeAllCookie()
-                } else {
-                    removeAllCookies(null)
-                }
+            removeAllCookies(null)
             }
         }
 
@@ -126,7 +131,7 @@ open class CustomWebViewClient(
                 networkWatcher = null
             }
         } catch (e: IllegalArgumentException) {
-            Log.w("WebViewClient", "Receiver not registered or already unregistered", e)
+            Logger.d(LOG_TAG, "Network watcher receiver already unregistered")
         }
     }
 

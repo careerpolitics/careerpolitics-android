@@ -14,10 +14,6 @@
 
         <!-- Draw into cutout -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-
-        <!-- Optional: disable forced contrast for transparent bars (API 29+) -->
-        <item name="android:enforceStatusBarContrast">false</item>
-        <item name="android:enforceNavigationBarContrast">false</item>
     </style>
 
     <!-- Splash screen theme (Android 12+) -->

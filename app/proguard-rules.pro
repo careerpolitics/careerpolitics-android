@@ -5,9 +5,23 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep JavaScript interface methods
+# ============================================================================
+# WebView JavaScript Interface - CRITICAL for app functionality
+# ============================================================================
+# Keep all JavaScript interface methods (exposed to WebView)
 -keepclassmembers class com.murari.careerpolitics.util.AndroidWebViewBridge {
     @android.webkit.JavascriptInterface <methods>;
+}
+
+# Keep all classes with JavascriptInterface annotations
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# Keep WebView related classes
+-keep public class android.webkit.WebView
+-keepclassmembers class android.webkit.WebView {
+    <methods>;
 }
 
 # Keep EventBus classes
@@ -41,20 +55,49 @@
 # Keep event classes
 -keep class com.murari.careerpolitics.events.** { *; }
 
-# Remove logging in release builds
+# ============================================================================
+# Logging - Completely strip debug logs in release builds
+# ============================================================================
+# This removes ALL debug/verbose/info logging code at compile time (zero overhead)
+# Warning and error logs are preserved for crash reporting
 -assumenosideeffects class android.util.Log {
     public static *** d(...);
     public static *** v(...);
     public static *** i(...);
 }
 
-# Optimize string operations
--optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
--optimizationpasses 5
--allowaccessmodification
+# Strip custom Logger debug/info/verbose logs
+-assumenosideeffects class com.murari.careerpolitics.util.Logger {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+}
 
-# Keep line numbers for debugging
+# ============================================================================
+# R8 Optimization Configuration
+# ============================================================================
+# Enable full mode for maximum optimization
+# (R8 full mode is enabled by default in AGP 8.0+)
+-allowaccessmodification
+-repackageclasses ''
+
+# Optimization passes (R8 handles this automatically)
+-optimizationpasses 5
+
+# Don't optimize away useful code
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
+
+# ============================================================================
+# Debugging - Keep line numbers and source file for crash reporting
+# ============================================================================
 -keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# Keep generic signature information for reflection
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
 
 # Remove unused code
 -dontwarn android.support.**
@@ -81,3 +124,53 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+# ============================================================================
+# Kotlin Specific
+# ============================================================================
+# Keep Kotlin metadata for reflection
+-keep class kotlin.Metadata { *; }
+
+# Keep Kotlin coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembernames class kotlinx.** {
+    volatile <fields>;
+}
+
+# ============================================================================
+# Gson (JSON parsing)
+# ============================================================================
+# Keep generic signatures for Gson
+-keepattributes Signature
+
+# Keep all model classes used with Gson
+# Add specific model classes here if you have them:
+# -keep class com.murari.careerpolitics.model.** { *; }
+
+# ============================================================================
+# Configuration Object - Keep for BuildConfig access
+# ============================================================================
+-keep class com.murari.careerpolitics.BuildConfig { *; }
+-keep class com.murari.careerpolitics.config.AppConfig { *; }
+-keep class com.murari.careerpolitics.config.Environment { *; }
+
+# ============================================================================
+# Pusher Push Notifications
+# ============================================================================
+-keep class com.pusher.pushnotifications.** { *; }
+-dontwarn com.pusher.pushnotifications.**
+
+# ============================================================================
+# Compose (if issues arise)
+# ============================================================================
+-dontwarn androidx.compose.**
+-keep class androidx.compose.** { *; }
+
+# ============================================================================
+# Additional Warnings to Ignore
+# ============================================================================
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+-dontwarn javax.annotation.**
+-dontwarn edu.umd.cs.findbugs.annotations.**

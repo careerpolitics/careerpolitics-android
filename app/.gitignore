@@ -1,1 +1,21 @@
 /build
+# ============================================================================
+# SECURITY: Never commit these files
+# ============================================================================
+
+# Secrets and API keys
+secrets.properties
+local.properties
+*.jks
+*.keystore
+release.keystore
+
+# Firebase configuration (contains API keys)
+google-services.json
+
+# Signing configurations
+keystore/
+*.pepk
+
+# Local development configuration
+local.defaults.properties
