@@ -2,7 +2,8 @@ package com.murari.careerpolitics.util
 
 import android.content.*
 import android.os.IBinder
-import android.util.Log
+import com.murari.careerpolitics.config.AppConfig
+import com.murari.careerpolitics.util.Logger
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import com.google.gson.Gson
@@ -35,10 +36,14 @@ class AndroidWebViewBridge(private val context: Context) {
         }
     }
 
+    companion object {
+        private const val LOG_TAG = "AndroidWebViewBridge"
+    }
+
     // Logging from JavaScript
     @JavascriptInterface
     fun logError(tag: String, message: String) {
-        Log.e(tag, message)
+        Logger.e("JS:$tag", message)
     }
 
     // Copy text to clipboard
@@ -70,7 +75,7 @@ class AndroidWebViewBridge(private val context: Context) {
         val map = try {
             gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
         } catch (e: Exception) {
-            logError("Podcast", "JSON parse error: ${e.localizedMessage}")
+            Logger.e(LOG_TAG, "Podcast JSON parse error", e)
             return
         }
 
@@ -86,7 +91,7 @@ class AndroidWebViewBridge(private val context: Context) {
                 map["episodeName"], map["podcastName"], map["imageUrl"]
             )
             "terminate" -> terminatePodcast()
-            else        -> logError("Podcast", "Unknown action: ${map["action"]}")
+            else        -> Logger.w(LOG_TAG, "Unknown podcast action: ${map["action"]}")
         }
     }
 
@@ -96,13 +101,13 @@ class AndroidWebViewBridge(private val context: Context) {
         val map = try {
             gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
         } catch (e: Exception) {
-            logError("Video", "JSON parse error: ${e.localizedMessage}")
+            Logger.e(LOG_TAG, "Video JSON parse error", e)
             return
         }
 
         when (map["action"]) {
             "play" -> playVideo(map["url"], map["seconds"])
-            else   -> logError("Video", "Unknown action: ${map["action"]}")
+            else   -> Logger.w(LOG_TAG, "Unknown video action: ${map["action"]}")
         }
     }
 
@@ -135,7 +140,7 @@ class AndroidWebViewBridge(private val context: Context) {
             override fun run() {
                 podcastTimeUpdate()
             }
-        }, 0, 1000)
+        }, 0, AppConfig.PODCAST_TICK_INTERVAL_MS)
     }
 
     fun terminatePodcast() {
