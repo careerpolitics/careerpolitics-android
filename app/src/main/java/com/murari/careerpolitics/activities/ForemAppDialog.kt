@@ -10,14 +10,14 @@ import android.view.*
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
 import com.murari.careerpolitics.R
+import androidx.core.net.toUri
 
 class ForemAppDialog : DialogFragment() {
 
     companion object {
-        private const val PACKAGE_NAME = "com.forem.android"
+        private const val PACKAGE_NAME = "com.murari.careerpolitics"
         private const val FOREM_URL_KEY = "ForemAppDialog.url"
 
         fun newInstance(url: String): ForemAppDialog {
@@ -28,21 +28,23 @@ class ForemAppDialog : DialogFragment() {
             }
         }
 
-        fun isForemAppInstalled(activity: Activity?): Boolean {
+        fun isAppInstalled(activity: Activity): Boolean {
             return try {
-                activity?.packageManager?.getPackageInfo(PACKAGE_NAME, 0)
+                activity.packageManager.getPackageInfo(PACKAGE_NAME, 0)
                 true
             } catch (e: PackageManager.NameNotFoundException) {
                 false
             }
         }
 
-        fun openForemApp(activity: Activity?, url: String?) {
-            val intent = activity?.packageManager?.getLaunchIntentForPackage(PACKAGE_NAME)
-            if (!url.isNullOrEmpty()) {
-                intent?.putExtra(Intent.EXTRA_TEXT, url)
+        fun openApp(activity: Activity, url: String?) {
+            val intent = activity.packageManager.getLaunchIntentForPackage(PACKAGE_NAME)
+            if (url != null) {
+                intent?.data = Uri.parse(url)
             }
-            activity?.startActivity(intent)
+            if (intent != null) {
+                activity.startActivity(intent)
+            }
         }
     }
 
@@ -64,36 +66,39 @@ class ForemAppDialog : DialogFragment() {
 
         url = arguments?.getString(FOREM_URL_KEY).orEmpty()
 
-        val titleTextView = view.findViewById<TextView>(R.id.download_install_forem_app_text_view)
-        val iconImageView = view.findViewById<ImageView>(R.id.download_open_forem_image_view)
-        val descTextView = view.findViewById<TextView>(R.id.forem_app_dialog_description_text_view)
+        val title = view.findViewById<TextView>(R.id.download_install_forem_app_text_view)
+        val icon = view.findViewById<ImageView>(R.id.download_open_forem_image_view)
+        val description = view.findViewById<TextView>(R.id.forem_app_dialog_description_text_view)
         val layout = view.findViewById<ConstraintLayout>(R.id.download_forem_app_layout)
 
-        if (isForemAppInstalled(activity)) {
-            titleTextView.text = getString(R.string.open_forem_app)
-            descTextView.text = getString(R.string.forem_app_dialog_description_if_installed)
-            iconImageView.setImageResource(R.drawable.ic_compass)
+        val installed = isAppInstalled(requireActivity())
+
+        if (installed) {
+            title.text = getString(R.string.open_forem_app)
+            description.text = getString(R.string.forem_app_dialog_description_if_installed)
+            icon.setImageResource(R.drawable.ic_compass)
         } else {
-            titleTextView.text = getString(R.string.download_forem_app)
-            descTextView.text = getString(R.string.forem_app_dialog_description)
-            iconImageView.setImageResource(R.drawable.ic_baseline_arrow_downward_24)
+            title.text = getString(R.string.download_forem_app)
+            description.text = getString(R.string.forem_app_dialog_description)
+            icon.setImageResource(R.drawable.ic_baseline_arrow_downward_24)
         }
 
-        layout.setOnClickListener { openForemAppLink() }
+        layout.setOnClickListener { openAppLink(installed) }
 
         return view
     }
 
-    private fun openForemAppLink() {
-        if (isForemAppInstalled(activity)) {
-            openForemApp(activity, url)
+    private fun openAppLink(installed: Boolean) {
+        if (installed) {
+            openApp(requireActivity(), url)
         } else {
-            val intent = try {
-                Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PACKAGE_NAME"))
+            val playIntent = try {
+                Intent(Intent.ACTION_VIEW, "market://details?id=$PACKAGE_NAME".toUri())
             } catch (e: ActivityNotFoundException) {
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$PACKAGE_NAME"))
+                Intent(Intent.ACTION_VIEW,
+                    "https://play.google.com/store/apps/details?id=$PACKAGE_NAME".toUri())
             }
-            startActivity(intent)
+            startActivity(playIntent)
         }
         dismiss()
     }
