@@ -154,9 +154,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
             PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
 
-            PushNotificationService.registerFcmToken(applicationContext)
-
-            Logger.d(LOG_TAG, "Push Notifications initialized")
+            Logger.d(LOG_TAG, "Push Notifications initialized(awaiting user auth for token registration)")
         } catch (e: Exception) {
             Logger.e(LOG_TAG, "Error initializing push notifications", e)
 
@@ -165,7 +163,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
                 PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
 
-                PushNotificationService.registerFcmToken(applicationContext)
                 Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
             } catch (fallbackException: Exception) {
                 Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)

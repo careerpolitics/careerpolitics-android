@@ -2,6 +2,7 @@ package com.murari.careerpolitics.services
 
 import android.content.Context
 import android.util.Log
+import android.webkit.CookieManager
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.util.Logger
@@ -26,9 +27,14 @@ object PushNotificationService {
     fun registerFcmToken(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl)
+                if(cookies.isNullOrBlank() || !cookies.contains("_Career_Politics_Session")){
+                    Log.d(TAG,"User not authenticated, skipping FCM token registration")
+                    return@launch
+                }
                 val token = fetchFcmToken()
                 Log.d(TAG, "FCM token obtained: ${token.take(20)}...")
-                sendTokenToServer(token)
+                sendTokenToServer(token, cookies)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to register FCM token", e)
             }
@@ -52,7 +58,7 @@ object PushNotificationService {
     /**
      * Send token to backend server
      */
-    private fun sendTokenToServer(token: String) {
+    private fun sendTokenToServer(token: String, cookies: String) {
         val url = URL("${AppConfig.baseUrl}$FCM_TOKEN_ENDPOINT")
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
@@ -61,6 +67,7 @@ object PushNotificationService {
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("Cookie",cookies)
         }
 
         try {
