@@ -29,6 +29,7 @@ import androidx.core.view.updatePadding
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
+import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
@@ -153,6 +154,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
             PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
 
+            PushNotificationService.registerFcmToken(applicationContext)
+
             Logger.d(LOG_TAG, "Push Notifications initialized")
         } catch (e: Exception) {
             Logger.e(LOG_TAG, "Error initializing push notifications", e)
@@ -161,6 +164,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             try {
                 PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
                 PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
+
+                PushNotificationService.registerFcmToken(applicationContext)
                 Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
             } catch (fallbackException: Exception) {
                 Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)

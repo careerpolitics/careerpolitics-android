@@ -245,9 +245,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
-
-    // Pusher Push Notifications
     implementation(libs.push.notifications.android)
+
 
     // Gson
     implementation(libs.gson)
