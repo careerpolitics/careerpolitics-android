@@ -85,7 +85,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             } else {
                 navigateToHome()
             }
-
+            handleNotificationIntent(intent)
             initGalleryLauncher()
 
             mainActivityScope.launch {
@@ -206,8 +206,39 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        binding?.webView?.loadUrl(intent.data?.toString().orEmpty())
+        setIntent(intent)
+        handleNotificationIntent(intent)
     }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent == null) return
+
+        try {
+            val url = intent.getStringExtra("url")
+            val notificationType = intent.getStringExtra("notification_type")
+
+            val actionType = intent.getStringExtra("action")
+
+            if (url.isNullOrBlank()) {
+                Logger.d(LOG_TAG, "Notification intent received without URL, ignoring")
+                return
+            }
+
+            binding?.webView?.loadUrl(url)
+
+            Logger.d(
+                LOG_TAG,
+                "Notification clicked: type=$notificationType, action=$actionType, url=$url"
+            )
+
+            intent.removeExtra("url")
+            intent.removeExtra("notification_type")
+
+        } catch (e: Exception) {
+            Logger.e(LOG_TAG, "Failed to handle notification intent", e)
+        }
+    }
+
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->
