@@ -21,19 +21,27 @@ object PushNotificationService {
     private const val CONNECT_TIMEOUT = 10_000
     private const val READ_TIMEOUT = 10_000
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     /**
      * Entry point to register device FCM token with backend
      */
     fun registerFcmToken(context: Context) {
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             try {
-                val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl)
-                if(cookies.isNullOrBlank() || !cookies.contains("_Career_Politics_Session")){
-                    Log.d(TAG,"User not authenticated, skipping FCM token registration")
+                val cookies =
+                    CookieManager.getInstance().getCookie(AppConfig.baseUrl)
+
+                if (cookies.isNullOrBlank() ||
+                    !cookies.contains("_Career_Politics_Session")
+                ) {
+                    Log.d(TAG, "User not authenticated, skipping FCM registration")
                     return@launch
                 }
+
                 val token = fetchFcmToken()
-                Log.d(TAG, "FCM token obtained: ${token.take(20)}...")
+                Log.d(TAG, "FCM token obtained: ${token.take(20)}…")
+
                 sendTokenToServer(token, cookies)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to register FCM token", e)
@@ -67,7 +75,7 @@ object PushNotificationService {
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("Cookie",cookies)
+            setRequestProperty("Cookie", cookies)
         }
 
         try {
@@ -78,8 +86,7 @@ object PushNotificationService {
             }
 
             connection.outputStream.use { os ->
-                os.write(payload.toString().toByteArray())
-                os.flush()
+                os.write(payload.toString().toByteArray(Charsets.UTF_8))
             }
 
             val responseCode = connection.responseCode
@@ -133,7 +140,7 @@ object PushNotificationService {
             return
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             var connection: HttpURLConnection? = null
 
             try {
@@ -156,8 +163,7 @@ object PushNotificationService {
                     os.flush()
                 }
 
-                val responseCode = connection.responseCode
-                Logger.d(TAG, "Device unregistration response: $responseCode")
+                Logger.d(TAG, "Device unregistration response: ${connection.responseCode}")
 
             } catch (e: Exception) {
                 Logger.e(TAG, "Error unregistering device", e)

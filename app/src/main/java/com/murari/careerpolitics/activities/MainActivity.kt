@@ -173,18 +173,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onResume() {
         super.onResume()
         binding?.webView?.let { webView ->
-            intent.extras?.getString("url")?.let { targetUrl ->
-                try {
-                    // Validate URL matches our base domain for security
-                    if (AppConfig.isValidAppUrl(targetUrl)) {
-                        webView.loadUrl(targetUrl)
-                    } else {
-                        Logger.w(LOG_TAG, "Rejected URL from intent: $targetUrl (domain mismatch)")
-                    }
-                } catch (e: Exception) {
-                    Logger.e(LOG_TAG, "Error loading intent URL", e)
-                }
-            }
+            handleNotificationIntent(intent)
             webViewClient.observeNetwork()
         }
     }
