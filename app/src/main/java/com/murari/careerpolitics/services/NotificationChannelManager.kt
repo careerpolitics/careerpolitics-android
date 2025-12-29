@@ -37,7 +37,7 @@ class NotificationChannelManager(private val context: Context) {
                 importance = NotificationManager.IMPORTANCE_DEFAULT
             ),
             createChannel(
-                NotificationCategory.SOCIAL,
+                NotificationCategory.FOLLOWER,
                 "Get notified about new follower",
                 importance = NotificationManager.IMPORTANCE_DEFAULT
             ),

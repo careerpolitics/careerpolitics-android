@@ -11,7 +11,7 @@ enum class NotificationCategory(val channelId: String, val channelName: String) 
     COMMENT("comment_replies", "Comment Replies"),
     MENTION("mentions", "Mentions"),
     REACTION("reactions", "Reactions"),
-    SOCIAL("social", "Social"),
+    FOLLOWER("followers", "Followers"),
     ACHIEVEMENT("achievements", "Achievements"),
     MILESTONE("milestones", "Milestones"),
     DEFAULT("default", "Default");
@@ -23,12 +23,12 @@ enum class NotificationCategory(val channelId: String, val channelName: String) 
          */
         fun fromString(value: String?): NotificationCategory {
             return when (value?.lowercase()) {
-                "comment" -> COMMENT
-                "mention" -> MENTION
-                "reaction" -> REACTION
-                "social" -> SOCIAL
-                "achievement" -> ACHIEVEMENT
-                "milestone" -> MILESTONE
+                "comment","comment_replies" -> COMMENT
+                "mention","mentions" -> MENTION
+                "reaction","reactions" -> REACTION
+                "follower","followers" -> FOLLOWER
+                "achievement","achievements" -> ACHIEVEMENT
+                "milestone","milestones" -> MILESTONE
                 else -> DEFAULT
             }
         }

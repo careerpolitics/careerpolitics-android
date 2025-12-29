@@ -93,7 +93,7 @@ class NotificationBuilderFactory(
                     NotificationCompat.CATEGORY_MESSAGE
 
                 NotificationCategory.REACTION,
-                NotificationCategory.SOCIAL ->
+                NotificationCategory.FOLLOWER ->
                     NotificationCompat.CATEGORY_SOCIAL
 
                 NotificationCategory.ACHIEVEMENT,
