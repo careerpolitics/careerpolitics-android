@@ -36,8 +36,8 @@ android {
         applicationId = "com.murari.careerpolitics"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 6
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
@@ -245,9 +245,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
-
-    // Pusher Push Notifications
     implementation(libs.push.notifications.android)
+
 
     // Gson
     implementation(libs.gson)

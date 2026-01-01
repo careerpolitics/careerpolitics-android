@@ -29,6 +29,7 @@ import androidx.core.view.updatePadding
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
+import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
@@ -84,7 +85,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             } else {
                 navigateToHome()
             }
-
+            handleNotificationIntent(intent)
             initGalleryLauncher()
 
             mainActivityScope.launch {
@@ -153,7 +154,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
             PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
 
-            Logger.d(LOG_TAG, "Push Notifications initialized")
+            Logger.d(LOG_TAG, "Push Notifications initialized(awaiting user auth for token registration)")
         } catch (e: Exception) {
             Logger.e(LOG_TAG, "Error initializing push notifications", e)
 
@@ -161,6 +162,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             try {
                 PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
                 PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
+
                 Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
             } catch (fallbackException: Exception) {
                 Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)
@@ -171,18 +173,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onResume() {
         super.onResume()
         binding?.webView?.let { webView ->
-            intent.extras?.getString("url")?.let { targetUrl ->
-                try {
-                    // Validate URL matches our base domain for security
-                    if (AppConfig.isValidAppUrl(targetUrl)) {
-                        webView.loadUrl(targetUrl)
-                    } else {
-                        Logger.w(LOG_TAG, "Rejected URL from intent: $targetUrl (domain mismatch)")
-                    }
-                } catch (e: Exception) {
-                    Logger.e(LOG_TAG, "Error loading intent URL", e)
-                }
-            }
+            handleNotificationIntent(intent)
             webViewClient.observeNetwork()
         }
     }
@@ -215,8 +206,39 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        binding?.webView?.loadUrl(intent.data?.toString().orEmpty())
+        setIntent(intent)
+        handleNotificationIntent(intent)
     }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent == null) return
+
+        try {
+            val url = intent.getStringExtra("url")
+            val notificationType = intent.getStringExtra("notification_type")
+
+            val actionType = intent.getStringExtra("action")
+
+            if (url.isNullOrBlank()) {
+                Logger.d(LOG_TAG, "Notification intent received without URL, ignoring")
+                return
+            }
+
+            binding?.webView?.loadUrl(url)
+
+            Logger.d(
+                LOG_TAG,
+                "Notification clicked: type=$notificationType, action=$actionType, url=$url"
+            )
+
+            intent.removeExtra("url")
+            intent.removeExtra("notification_type")
+
+        } catch (e: Exception) {
+            Logger.e(LOG_TAG, "Failed to handle notification intent", e)
+        }
+    }
+
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->

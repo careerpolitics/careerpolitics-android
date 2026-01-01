@@ -3,13 +3,13 @@ package com.murari.careerpolitics.webclients
 import android.content.Context
 import android.graphics.Color
 import android.net.Uri
-import android.os.Build
 import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.*
 import androidx.browser.customtabs.CustomTabsIntent
 import com.murari.careerpolitics.events.NetworkStatusEvent
+import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.network.NetworkStatus
 import com.murari.careerpolitics.util.network.NetworkUtils
 import com.murari.careerpolitics.util.network.NetworkWatcher
@@ -44,10 +44,12 @@ open class CustomWebViewClient(
 
     private var registeredUserNotifications = false
     private var networkWatcher: NetworkWatcher? = null
+    private var registeredFcmToken = false
 
     override fun onPageFinished(view: WebView, url: String?) {
         view.visibility = View.VISIBLE
         onPageFinish()
+        checkAndRegisterFcmToken(view)
         super.onPageFinished(view, url)
     }
 
@@ -61,12 +63,48 @@ open class CustomWebViewClient(
                     registeredUserNotifications = true
                     Logger.d(LOG_TAG, "Registered device for user-$userId notifications")
                 }
+
+                if(!registeredFcmToken){
+                    Logger.d(LOG_TAG, "User authenticated detected ( user_id: $userId), registering FCM token")
+                    PushNotificationService.registerFcmToken(context)
+                    registeredFcmToken = true
+                }
             } catch (e: Exception) {
                 Logger.d(LOG_TAG, "Could not parse user ID from body data-user attribute")
             }
         }
         super.doUpdateVisitedHistory(view, url, isReload)
     }
+
+    private fun checkAndRegisterFcmToken(webView: WebView) {
+        // 1. Don't proceed if the token has already been registered in this session.
+        if (registeredFcmToken) {
+            return
+        }
+
+        // 2. Check for the session cookie to quickly determine if the user might be logged in.
+        val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl).orEmpty()
+        val hasSessionCookie = cookies.isNotBlank() && cookies.contains("_careerpolitics_session")
+
+        // 3. As a final confirmation, check the 'user-signed-in' meta tag within the web page.
+        // This confirms the user's session is active on the frontend.
+        val script = "document.querySelector('meta[name=\"user-signed-in\"]').content"
+
+        webView.evaluateJavascript(script) { result ->
+            val isSignedIn = result?.trim('"') == "true"
+
+            if (isSignedIn) {
+                Logger.d(LOG_TAG, "User authenticated detected. Registering FCM token.")
+
+                // Trigger the service to get the FCM token and send it to the backend.
+                PushNotificationService.registerFcmToken(context)
+
+                // Mark as registered to prevent this check from running again.
+                registeredFcmToken = true
+            }
+        }
+    }
+
 
     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
         Logger.d(LOG_TAG, "Intercepting URL: $url")
