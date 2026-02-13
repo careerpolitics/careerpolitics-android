@@ -37,6 +37,19 @@
                     android:scheme="https"
                     android:host="careerpolitics.com" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="careerpolitics" android:host="oauth" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="careerpolitics.com"
+                    android:pathPrefix="/users/auth/google_oauth2/callback"/>
+            </intent-filter>
         </activity>
 
         <activity

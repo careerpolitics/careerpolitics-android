@@ -28,6 +28,7 @@ import androidx.core.view.updatePadding
 
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
+import com.murari.careerpolitics.auth.GoogleSignInHelper
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.AndroidWebViewBridge
@@ -83,7 +84,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             if (savedInstanceState != null) {
                 restoreState(savedInstanceState)
             } else {
-                navigateToHome()
+                if(!handleOAuthCallback(intent))
+                    navigateToHome()
             }
             handleNotificationIntent(intent)
             initGalleryLauncher()
@@ -208,6 +210,24 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         super.onNewIntent(intent)
         setIntent(intent)
         handleNotificationIntent(intent)
+    }
+
+    private fun handleOAuthCallback(intent: Intent?): Boolean {
+        if(intent?.action != Intent.ACTION_VIEW) return false
+
+        val data= intent.data?: return false
+        val url= data.toString()
+
+        if(!GoogleSignInHelper.isOAuthCallbackUrl(url)) return false
+
+        Logger.d(LOG_TAG,"OAuth callback received:$url")
+
+        val webCallbackUrl= GoogleSignInHelper.getWebCallbackUrl(data)
+        Logger.d(LOG_TAG,"Loading OAuth callback in WebView: $webCallbackUrl")
+
+        binding?.webView?.loadUrl(webCallbackUrl.toString())
+        intent.data= null
+        return true
     }
 
     private fun handleNotificationIntent(intent: Intent?) {

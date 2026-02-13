@@ -8,6 +8,7 @@ import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.*
 import androidx.browser.customtabs.CustomTabsIntent
+import com.murari.careerpolitics.auth.GoogleSignInHelper
 import com.murari.careerpolitics.events.NetworkStatusEvent
 import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.network.NetworkStatus
@@ -19,6 +20,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.json.JSONObject
+import androidx.core.net.toUri
 
 open class CustomWebViewClient(
     private val context: Context,
@@ -116,8 +118,14 @@ open class CustomWebViewClient(
             view.clearFormData()
             view.clearHistory()
             CookieManager.getInstance().apply {
-            removeAllCookies(null)
+                removeAllCookies(null)
             }
+        }
+
+        if(GoogleSignInHelper.isGoogleOAuthUrl(url)){
+            Logger.d(LOG_TAG,"Opening Google OAuth in Chrome Custom Tabs:$url")
+            GoogleSignInHelper.launchGoogleOAuth(context,url)
+            return true
         }
 
         if (overrideUrlList.any { url.contains(it) }) return false
@@ -125,7 +133,7 @@ open class CustomWebViewClient(
         CustomTabsIntent.Builder()
             .setToolbarColor(Color.TRANSPARENT)
             .build()
-            .launchUrl(context, Uri.parse(url))
+            .launchUrl(context, url.toUri())
 
         return true
     }
