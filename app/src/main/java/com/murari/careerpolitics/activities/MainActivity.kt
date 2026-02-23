@@ -215,15 +215,27 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
 
     private fun handleAppLinkIntent(intent: Intent?): Boolean {
-        val deepLinkUrl = intent?.dataString ?: return false
+        val deepLinkUri = intent?.data ?: return false
+        val deepLinkUrl = deepLinkUri.toString()
 
         if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
             Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
             return false
         }
 
-        Logger.d(LOG_TAG, "Opening app link in WebView: $deepLinkUrl")
-        binding?.webView?.loadUrl(deepLinkUrl)
+        val isGoogleAuthCallback = deepLinkUri.path.orEmpty()
+            .lowercase()
+            .contains("/auth/google") && deepLinkUri.getQueryParameter("code") != null
+
+        val destinationUrl = if (isGoogleAuthCallback) AppConfig.baseUrl else deepLinkUrl
+
+        Logger.d(
+            LOG_TAG,
+            "Opening app link in WebView: incoming=$deepLinkUrl, destination=$destinationUrl"
+        )
+
+        android.webkit.CookieManager.getInstance().flush()
+        binding?.webView?.loadUrl(destinationUrl)
         return true
     }
 
