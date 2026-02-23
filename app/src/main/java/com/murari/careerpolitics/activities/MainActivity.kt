@@ -82,7 +82,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             if (savedInstanceState != null) {
                 restoreState(savedInstanceState)
-            } else {
+            } else if (!handleAppLinkIntent(intent)) {
                 navigateToHome()
             }
             handleNotificationIntent(intent)
@@ -207,7 +207,24 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleNotificationIntent(intent)
+
+        if (!handleAppLinkIntent(intent)) {
+            handleNotificationIntent(intent)
+        }
+    }
+
+
+    private fun handleAppLinkIntent(intent: Intent?): Boolean {
+        val deepLinkUrl = intent?.dataString ?: return false
+
+        if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
+            Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
+            return false
+        }
+
+        Logger.d(LOG_TAG, "Opening app link in WebView: $deepLinkUrl")
+        binding?.webView?.loadUrl(deepLinkUrl)
+        return true
     }
 
     private fun handleNotificationIntent(intent: Intent?) {

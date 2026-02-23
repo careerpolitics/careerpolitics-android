@@ -37,9 +37,13 @@ open class CustomWebViewClient(
         "api.twitter.com/oauth",
         "api.twitter.com/login/error",
         "api.twitter.com/account/login_verification",
-        "accounts.google.com",
         "github.com/login",
         "github.com/sessions/"
+    )
+
+    private val googleAuthHosts = setOf(
+        "accounts.google.com",
+        "oauth2.googleapis.com"
     )
 
     private var registeredUserNotifications = false
@@ -107,7 +111,19 @@ open class CustomWebViewClient(
 
 
     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+        return handleUrlOverride(view, url)
+    }
+
+    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+        val url = request.url?.toString().orEmpty()
+        return handleUrlOverride(view, url)
+    }
+
+    private fun handleUrlOverride(view: WebView, url: String): Boolean {
         Logger.d(LOG_TAG, "Intercepting URL: $url")
+
+        val parsedUri = url.toUri()
+        val host = parsedUri.host.orEmpty().lowercase()
 
         // Clear cache/cookies on specific routes (e.g., login/logout)
         if (AppConfig.clearCacheRoutes.any { url.startsWith(it) }) {
@@ -120,14 +136,36 @@ open class CustomWebViewClient(
             }
         }
 
+        if (shouldOpenInCustomTab(host, url)) {
+            launchCustomTab(url)
+            return true
+        }
+
         if (overrideUrlList.any { url.contains(it) }) return false
 
+        launchCustomTab(url)
+
+        return true
+    }
+
+    private fun shouldOpenInCustomTab(host: String, url: String): Boolean {
+        if (host in googleAuthHosts) return true
+
+        if (host.endsWith(AppConfig.baseDomain)) {
+            val normalizedPath = url.toUri().path.orEmpty().lowercase()
+            if (normalizedPath.contains("google") && normalizedPath.contains("auth")) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private fun launchCustomTab(url: String) {
         CustomTabsIntent.Builder()
             .setToolbarColor(Color.TRANSPARENT)
             .build()
             .launchUrl(context, Uri.parse(url))
-
-        return true
     }
 
     fun sendBridgeMessage(type: String, message: Map<String, Any>) {
