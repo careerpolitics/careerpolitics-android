@@ -85,6 +85,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             } else {
                 navigateToHome()
             }
+            handleDeepLinkIntent(intent)
             handleNotificationIntent(intent)
             initGalleryLauncher()
 
@@ -207,7 +208,23 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleDeepLinkIntent(intent)
         handleNotificationIntent(intent)
+    }
+
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+
+        val deepLinkUri = intent.data ?: return
+        val deepLinkUrl = deepLinkUri.toString()
+
+        if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
+            Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
+            return
+        }
+
+        Logger.d(LOG_TAG, "Handling deep link URL: $deepLinkUrl")
+        binding?.webView?.loadUrl(deepLinkUrl)
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
