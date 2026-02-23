@@ -31,15 +31,22 @@ open class CustomWebViewClient(
         private const val LOG_TAG = "CustomWebViewClient"
     }
 
-    // URLs that should NOT be opened in external browser (OAuth flows, internal pages)
+    // URLs that should NOT be opened in external browser (internal pages)
     private val overrideUrlList = listOf(
         AppConfig.baseDomain, // Our base domain
         "api.twitter.com/oauth",
         "api.twitter.com/login/error",
         "api.twitter.com/account/login_verification",
-        "accounts.google.com",
         "github.com/login",
         "github.com/sessions/"
+    )
+
+    // OAuth URLs that should be delegated to Chrome Custom Tabs.
+    // This enables native Google account selection and avoids embedded WebView auth restrictions.
+    private val externalAuthUrlList = listOf(
+        "accounts.google.com",
+        "/users/auth/google_oauth2",
+        "/users/auth/google_oauth2/callback"
     )
 
     private var registeredUserNotifications = false
@@ -120,14 +127,25 @@ open class CustomWebViewClient(
             }
         }
 
+        if (externalAuthUrlList.any { url.contains(it) }) {
+            openInCustomTab(url)
+            return true
+        }
+
         if (overrideUrlList.any { url.contains(it) }) return false
+
+        openInCustomTab(url)
+
+        return true
+    }
+
+    private fun openInCustomTab(url: String) {
+        Logger.d(LOG_TAG, "Opening URL in Chrome Custom Tab: $url")
 
         CustomTabsIntent.Builder()
             .setToolbarColor(Color.TRANSPARENT)
             .build()
             .launchUrl(context, Uri.parse(url))
-
-        return true
     }
 
     fun sendBridgeMessage(type: String, message: Map<String, Any>) {
