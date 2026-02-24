@@ -119,6 +119,9 @@ android {
                 "proguard-rules.pro"
             )
 
+            // Reuse existing library module variants (debug/release) for staging resolution
+            matchingFallbacks += listOf("debug", "release")
+
             // Staging uses production-like settings but different config
             buildConfigField("String", "USER_AGENT", "\"STAGING-Native-android\"")
             buildConfigField("String", "PUSHER_INSTANCE_ID", "\"${getSecret("pusher.instance.id", "PUSHER_INSTANCE_ID", "staging-instance-id")}\"")
