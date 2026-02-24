@@ -25,6 +25,8 @@ Add these in **GitHub → Settings → Secrets and variables → Actions**:
 - `KEY_ALIAS` - key alias
 - `KEY_PASSWORD` - key password
 - `PUSHER_INSTANCE_ID` - optional app runtime secret used in build config
+- `GOOGLE_SERVICES_JSON` - raw contents of `google-services.json` (**recommended**)
+  - or `GOOGLE_SERVICES_JSON_BASE64` - base64 encoded `google-services.json`
 
 ## One-time command to create `KEYSTORE_BASE64`
 

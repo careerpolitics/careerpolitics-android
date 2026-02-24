@@ -37,6 +37,17 @@ jobs:
       - name: Grant execute permission
         run: chmod +x ./gradlew
 
+      - name: Create google-services.json
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON }}" > app/google-services.json
+          elif [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > app/google-services.json
+          else
+            echo "Missing GOOGLE_SERVICES_JSON or GOOGLE_SERVICES_JSON_BASE64 secret" >&2
+            exit 1
+          fi
+
       - name: Run lint
         run: ./gradlew lintDebug
 
@@ -53,6 +64,10 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: rm -f app/google-services.json
 
   release:
     name: Build Play Store release artifacts
@@ -76,6 +91,17 @@ jobs:
 
       - name: Grant execute permission
         run: chmod +x ./gradlew
+
+      - name: Create google-services.json
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON }}" > app/google-services.json
+          elif [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > app/google-services.json
+          else
+            echo "Missing GOOGLE_SERVICES_JSON or GOOGLE_SERVICES_JSON_BASE64 secret" >&2
+            exit 1
+          fi
 
       - name: Validate release secrets
         run: |
@@ -132,4 +158,4 @@ jobs:
 
       - name: Cleanup keystore
         if: always()
-        run: rm -f app/release.keystore
+        run: rm -f app/release.keystore app/google-services.json
