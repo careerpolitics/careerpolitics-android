@@ -21,12 +21,12 @@ gson = "2.13.2"
 firebase_messaging = "25.0.1"
 push_notifications_android = "1.10.0"
 playServicesAuth = "21.3.0"
-
 eventbus = "3.3.1"
 kotlinx_coroutines = "1.10.2"
 googleServices = "4.4.4"
 firebaseCrashlyticsPlugin = "3.0.6"
-
+hilt = "2.57.2"
+detekt = "1.23.8"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -65,11 +65,15 @@ eventbus = { group = "org.greenrobot", name = "eventbus", version.ref = "eventbu
 eventbus-annotation-processor = { group = "org.greenrobot", name = "eventbus-annotation-processor", version.ref = "eventbus" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx_coroutines" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx_coroutines" }
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }
-
+hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

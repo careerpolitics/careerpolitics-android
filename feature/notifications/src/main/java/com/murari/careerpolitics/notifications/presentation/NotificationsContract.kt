@@ -1,0 +1,3 @@
+package com.murari.careerpolitics.notifications.presentation
+
+interface NotificationsContract
