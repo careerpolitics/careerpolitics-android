@@ -55,14 +55,26 @@ open class CustomWebViewClient(
     override fun onPageFinished(view: WebView, url: String?) {
         view.visibility = View.VISIBLE
         onPageFinish()
+
+        if (shouldFinishNativeGoogleCallback(url)) {
+            Logger.d(LOG_TAG, "Native Google callback loaded, redirecting to app home")
+            view.loadUrl(AppConfig.baseUrl)
+            super.onPageFinished(view, url)
+            return
+        }
+
         checkAndRegisterFcmToken(view)
         super.onPageFinished(view, url)
     }
 
     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-        val script = "JSON.parse(document.getElementsByTagName('body')[0].getAttribute('data-user')).id"
+        val script = "(function(){const body=document.body; if(!body){return null;} const raw=body.getAttribute(\"data-user\"); if(!raw){return null;} try{return JSON.parse(raw)?.id ?? null;}catch(e){return null;}})();"
         view?.evaluateJavascript(script) { result ->
             try {
+                if (result.isNullOrBlank() || result == "null") {
+                    return@evaluateJavascript
+                }
+
                 val userId = result.trim('"').toInt()
                 if (!registeredUserNotifications) {
                     PushNotifications.addDeviceInterest("user-notifications-$userId")
@@ -92,9 +104,13 @@ open class CustomWebViewClient(
         val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl).orEmpty()
         val hasSessionCookie = cookies.isNotBlank() && cookies.contains("_careerpolitics_session")
 
+        if (!hasSessionCookie) {
+            return
+        }
+
         // 3. As a final confirmation, check the 'user-signed-in' meta tag within the web page.
         // This confirms the user's session is active on the frontend.
-        val script = "document.querySelector('meta[name=\"user-signed-in\"]').content"
+        val script = "(function(){const node=document.querySelector(\"meta[name=\\\"user-signed-in\\\"]\"); return node ? node.content : null;})();"
 
         webView.evaluateJavascript(script) { result ->
             val isSignedIn = result?.trim('"') == "true"
@@ -175,6 +191,17 @@ open class CustomWebViewClient(
             .setToolbarColor(Color.TRANSPARENT)
             .build()
             .launchUrl(context, Uri.parse(url))
+    }
+
+
+    private fun shouldFinishNativeGoogleCallback(url: String?): Boolean {
+        val currentUrl = url ?: return false
+        val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
+            .trim()
+            .let { if (it.startsWith("/")) it else "/$it" }
+
+        val uri = currentUrl.toUri()
+        return uri.host?.endsWith(AppConfig.baseDomain) == true && uri.path == callbackPath
     }
 
     fun sendBridgeMessage(type: String, message: Map<String, Any>) {
