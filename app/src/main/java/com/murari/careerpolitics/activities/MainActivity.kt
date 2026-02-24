@@ -37,8 +37,6 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
-import com.murari.careerpolitics.feature.deeplink.domain.ResolvedDeepLink
-import com.murari.careerpolitics.feature.deeplink.presentation.DeepLinkViewModel
 import com.murari.careerpolitics.feature.shell.presentation.ShellNavigationCommand
 import com.murari.careerpolitics.feature.shell.presentation.ShellRouteSource
 import com.murari.careerpolitics.feature.shell.presentation.ShellViewModel
@@ -57,7 +55,6 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
     private val shellViewModel: ShellViewModel by viewModels()
-    private val deepLinkViewModel: DeepLinkViewModel by viewModels()
     private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
@@ -109,8 +106,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             observeShellState()
             shellViewModel.resolveStartupRoute(
                 savedInstanceStateExists = savedInstanceState != null,
-                deepLinkUrl = resolveDeepLink(intent),
-                notificationUrl = extractNotificationUrl(intent),
+                intent = intent,
                 homeUrl = AppConfig.baseUrl
             )
 
@@ -285,7 +281,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onResume() {
         super.onResume()
         binding?.webView?.let { _ ->
-            shellViewModel.resolveResumeIntent(extractNotificationUrl(intent))
+            shellViewModel.resolveResumeIntent(intent)
             webViewClient.observeNetwork()
         }
     }
@@ -319,24 +315,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        shellViewModel.resolveIncomingIntent(
-            deepLinkUrl = resolveDeepLink(intent),
-            notificationUrl = extractNotificationUrl(intent)
-        )
+        shellViewModel.resolveIncomingIntent(intent)
     }
-
-    private fun resolveDeepLink(intent: Intent?): String? {
-        return when (val resolved = deepLinkViewModel.resolve(intent)) {
-            is ResolvedDeepLink.Valid -> resolved.url
-            is ResolvedDeepLink.Invalid -> {
-                Logger.d(LOG_TAG, "Ignoring non-app deep link: ${resolved.candidate}")
-                null
-            }
-            ResolvedDeepLink.None -> null
-        }
-    }
-
-    private fun extractNotificationUrl(intent: Intent?): String? = intent?.getStringExtra("url")
 
     private fun observeShellState() {
         lifecycleScope.launch {

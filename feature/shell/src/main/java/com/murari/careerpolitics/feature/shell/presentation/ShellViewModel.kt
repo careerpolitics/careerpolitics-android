@@ -1,6 +1,8 @@
 package com.murari.careerpolitics.feature.shell.presentation
 
+import android.content.Intent
 import androidx.lifecycle.ViewModel
+import com.murari.careerpolitics.feature.shell.domain.AppUrlValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,24 +11,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 @HiltViewModel
-class ShellViewModel @Inject constructor() : ViewModel() {
+class ShellViewModel @Inject constructor(
+    private val appUrlValidator: AppUrlValidator
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ShellUiState())
     val uiState: StateFlow<ShellUiState> = _uiState.asStateFlow()
 
-    fun resolveStartupRoute(
-        savedInstanceStateExists: Boolean,
-        deepLinkUrl: String?,
-        notificationUrl: String?,
-        homeUrl: String
-    ) {
+    fun resolveStartupRoute(savedInstanceStateExists: Boolean, intent: Intent?, homeUrl: String) {
         if (savedInstanceStateExists) return
 
-        if (!deepLinkUrl.isNullOrBlank()) {
-            publishCommand(ShellNavigationCommand.LoadUrl(deepLinkUrl, ShellRouteSource.STARTUP_DEEP_LINK))
+        val appLinkUrl = intent?.dataString
+        if (!appLinkUrl.isNullOrBlank() && appUrlValidator.isValid(appLinkUrl)) {
+            publishCommand(ShellNavigationCommand.LoadUrl(appLinkUrl, ShellRouteSource.STARTUP_DEEP_LINK))
             return
         }
 
+        val notificationUrl = intent?.getStringExtra(NOTIFICATION_URL_EXTRA)
         if (!notificationUrl.isNullOrBlank()) {
             publishCommand(
                 ShellNavigationCommand.LoadUrl(
@@ -40,12 +41,14 @@ class ShellViewModel @Inject constructor() : ViewModel() {
         publishCommand(ShellNavigationCommand.LoadUrl(homeUrl, ShellRouteSource.STARTUP_HOME))
     }
 
-    fun resolveIncomingIntent(deepLinkUrl: String?, notificationUrl: String?) {
-        if (!deepLinkUrl.isNullOrBlank()) {
-            publishCommand(ShellNavigationCommand.LoadUrl(deepLinkUrl, ShellRouteSource.INCOMING_DEEP_LINK))
+    fun resolveIncomingIntent(intent: Intent?) {
+        val appLinkUrl = intent?.dataString
+        if (!appLinkUrl.isNullOrBlank() && appUrlValidator.isValid(appLinkUrl)) {
+            publishCommand(ShellNavigationCommand.LoadUrl(appLinkUrl, ShellRouteSource.INCOMING_DEEP_LINK))
             return
         }
 
+        val notificationUrl = intent?.getStringExtra(NOTIFICATION_URL_EXTRA)
         if (!notificationUrl.isNullOrBlank()) {
             publishCommand(
                 ShellNavigationCommand.LoadUrl(
@@ -56,7 +59,8 @@ class ShellViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun resolveResumeIntent(notificationUrl: String?) {
+    fun resolveResumeIntent(intent: Intent?) {
+        val notificationUrl = intent?.getStringExtra(NOTIFICATION_URL_EXTRA)
         if (!notificationUrl.isNullOrBlank()) {
             publishCommand(
                 ShellNavigationCommand.LoadUrl(
@@ -73,5 +77,9 @@ class ShellViewModel @Inject constructor() : ViewModel() {
 
     private fun publishCommand(command: ShellNavigationCommand) {
         _uiState.update { it.copy(pendingNavigation = command) }
+    }
+
+    companion object {
+        private const val NOTIFICATION_URL_EXTRA = "url"
     }
 }
