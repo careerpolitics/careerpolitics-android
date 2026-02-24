@@ -17,6 +17,7 @@ import android.graphics.Color
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -25,6 +26,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -33,7 +37,9 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
-import com.murari.careerpolitics.services.PushNotificationService
+import com.murari.careerpolitics.feature.shell.presentation.ShellNavigationCommand
+import com.murari.careerpolitics.feature.shell.presentation.ShellRouteSource
+import com.murari.careerpolitics.feature.shell.presentation.ShellViewModel
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
@@ -43,9 +49,12 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
+    private val shellViewModel: ShellViewModel by viewModels()
     private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
@@ -92,10 +101,15 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             if (savedInstanceState != null) {
                 restoreState(savedInstanceState)
-            } else if (!handleAppLinkIntent(intent)) {
-                navigateToHome()
             }
-            handleNotificationIntent(intent)
+
+            observeShellState()
+            shellViewModel.resolveStartupRoute(
+                savedInstanceStateExists = savedInstanceState != null,
+                intent = intent,
+                homeUrl = AppConfig.baseUrl
+            )
+
             initGalleryLauncher()
 
             mainActivityScope.launch {
@@ -266,8 +280,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     override fun onResume() {
         super.onResume()
-        binding?.webView?.let { webView ->
-            handleNotificationIntent(intent)
+        binding?.webView?.let { _ ->
+            shellViewModel.resolveResumeIntent(intent)
             webViewClient.observeNetwork()
         }
     }
@@ -301,55 +315,63 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-
-        if (!handleAppLinkIntent(intent)) {
-            handleNotificationIntent(intent)
-        }
+        shellViewModel.resolveIncomingIntent(intent)
     }
 
-
-    private fun handleAppLinkIntent(intent: Intent?): Boolean {
-        val deepLinkUrl = intent?.dataString ?: return false
-
-        if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
-            Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
-            return false
-        }
-
-        Logger.d(LOG_TAG, "Opening app link in WebView: $deepLinkUrl")
-        binding?.webView?.loadUrl(deepLinkUrl)
-        return true
-    }
-
-    private fun handleNotificationIntent(intent: Intent?) {
-        if (intent == null) return
-
-        try {
-            val url = intent.getStringExtra("url")
-            val notificationType = intent.getStringExtra("notification_type")
-
-            val actionType = intent.getStringExtra("action")
-
-            if (url.isNullOrBlank()) {
-                Logger.d(LOG_TAG, "Notification intent received without URL, ignoring")
-                return
+    private fun observeShellState() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                shellViewModel.uiState.collect { state ->
+                    val command = state.pendingNavigation ?: return@collect
+                    renderShellNavigation(command)
+                    shellViewModel.consumeNavigation()
+                }
             }
+        }
+    }
 
-            binding?.webView?.loadUrl(url)
+    private fun renderShellNavigation(command: ShellNavigationCommand) {
+        when (command) {
+            is ShellNavigationCommand.LoadUrl -> {
+                binding?.webView?.loadUrl(command.url)
+                logNavigation(command)
+                if (command.source in setOf(
+                        ShellRouteSource.STARTUP_NOTIFICATION,
+                        ShellRouteSource.INCOMING_NOTIFICATION,
+                        ShellRouteSource.RESUME_NOTIFICATION
+                    )) {
+                    consumeNotificationExtras(intent)
+                }
+            }
+        }
+    }
 
-            Logger.d(
+    private fun consumeNotificationExtras(intent: Intent?) {
+        intent?.removeExtra("url")
+        intent?.removeExtra("notification_type")
+    }
+
+    private fun logNavigation(command: ShellNavigationCommand.LoadUrl) {
+        when (command.source) {
+            ShellRouteSource.STARTUP_DEEP_LINK,
+            ShellRouteSource.INCOMING_DEEP_LINK -> Logger.d(
                 LOG_TAG,
-                "Notification clicked: type=$notificationType, action=$actionType, url=$url"
+                "Opening app link in WebView: ${command.url}"
             )
 
-            intent.removeExtra("url")
-            intent.removeExtra("notification_type")
+            ShellRouteSource.STARTUP_NOTIFICATION,
+            ShellRouteSource.INCOMING_NOTIFICATION,
+            ShellRouteSource.RESUME_NOTIFICATION -> Logger.d(
+                LOG_TAG,
+                "Notification routed to WebView: ${command.url}"
+            )
 
-        } catch (e: Exception) {
-            Logger.e(LOG_TAG, "Failed to handle notification intent", e)
+            ShellRouteSource.STARTUP_HOME -> Logger.d(
+                LOG_TAG,
+                "Routing startup to home"
+            )
         }
     }
-
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->
@@ -446,10 +468,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private fun restoreState(savedInstanceState: Bundle) {
         binding?.webView?.restoreState(savedInstanceState)
-    }
-
-    private fun navigateToHome() {
-        binding?.webView?.loadUrl(AppConfig.baseUrl)
     }
 
     fun handleCustomBackPressed() {
