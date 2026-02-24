@@ -44,6 +44,41 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
+      # PR/Main CI must not use secrets; create a minimal placeholder Firebase config.
+      - name: Create placeholder google-services.json for CI
+        run: |
+          cat > app/google-services.json <<'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "ci-placeholder",
+              "storage_bucket": "ci-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:placeholder",
+                  "android_client_info": {
+                    "package_name": "com.murari.careerpolitics"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "CI_PLACEHOLDER"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
       # Explicitly run required CI tasks in order; job fails immediately on first error.
       - name: Clean
         run: ./gradlew --no-daemon clean
@@ -70,3 +105,7 @@ jobs:
             app/build/test-results/testDebugUnitTest/**
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Cleanup placeholder Firebase config
+        if: always()
+        run: rm -f app/google-services.json

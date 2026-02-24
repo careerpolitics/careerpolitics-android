@@ -84,6 +84,9 @@ Artifacts uploaded:
 - lint reports
 - unit test reports
 
+Note:
+- PR CI auto-generates a minimal placeholder `app/google-services.json` (non-secret) so Google Services tasks can run without exposing Firebase secrets.
+
 ### Main Branch
 `merge-main.yml` runs on:
 - `push` to `main`
@@ -92,6 +95,7 @@ Actions:
 - Runs sanity build (`clean lint testDebugUnitTest assembleDebug`)
 - Generates and uploads `build/ci/version-metadata.json`
 - Sets CI version metadata (`CI_VERSION_CODE`, `CI_VERSION_NAME`)
+- Auto-generates a placeholder `app/google-services.json` for non-release CI compatibility
 
 ### Tagged Release
 `release.yml` runs on:
