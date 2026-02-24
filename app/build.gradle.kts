@@ -52,7 +52,7 @@ android {
         buildConfigField("int", "NETWORK_TIMEOUT_MS", "1500")
         buildConfigField("String", "FIREBASE_TOPIC", "\"all\"")
         buildConfigField("String", "PUSHER_INTEREST", "\"broadcast\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${getSecret("google.web.client.id", "GOOGLE_WEB_CLIENT_ID", "")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${getSecret("google.web.client.id", "GOOGLE_WEB_CLIENT_ID", "89605387556-4i6ndjolfd6p6458elkggt712p4a3hic.apps.googleusercontent.com")}\"")
         buildConfigField("String", "NATIVE_GOOGLE_LOGIN_CALLBACK_PATH", "\"${getSecret("native.google.login.path", "NATIVE_GOOGLE_LOGIN_PATH", "/users/auth/google_oauth2/callback")}\"")
     }
 
