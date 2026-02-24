@@ -1,0 +1,178 @@
+name: Android Release
+
+on:
+  # Build release artifacts for main (internal testing) and semver tags (production).
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+  release-build:
+    name: Build signed release artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      # Validate required signing/config secrets before attempting build.
+      - name: Validate required secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          for var in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD GOOGLE_SERVICES_JSON_BASE64; do
+            if [ -z "${!var}" ]; then
+              echo "Missing required secret: $var" >&2
+              exit 1
+            fi
+          done
+
+      # Decode secret files consumed by the Android build.
+      - name: Decode signing keystore and google services
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+
+      # Build signed APK and AAB using env vars read by app/build.gradle.kts signingConfig.
+      - name: Build signed release APK and AAB
+        env:
+          KEYSTORE_PATH: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease bundleRelease
+
+      # Archive signed artifacts and mapping file for traceability and crash symbolication.
+      - name: Upload signed release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload signed release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload ProGuard mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: warn
+          retention-days: 365
+
+      - name: Cleanup generated secrets
+        if: always()
+        run: rm -f app/release.keystore app/google-services.json
+
+  deploy-internal:
+    name: Deploy to Google Play Internal track
+    runs-on: ubuntu-latest
+    needs: release-build
+    # Optional deployment: only on main branch and only when service account secret exists.
+    if: github.ref == 'refs/heads/main' && secrets.SERVICE_ACCOUNT_JSON_BASE64 != ''
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Decode Google Play service account key
+        env:
+          SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.SERVICE_ACCOUNT_JSON_BASE64 }}
+        run: echo "$SERVICE_ACCOUNT_JSON_BASE64" | base64 --decode > service-account.json
+
+      - name: Download release AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-aab
+          path: dist
+
+      - name: Upload to Internal track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: service-account.json
+          packageName: com.murari.careerpolitics
+          releaseFiles: dist/app-release.aab
+          track: internal
+          status: completed
+
+      - name: Cleanup service account key
+        if: always()
+        run: rm -f service-account.json
+
+  deploy-production:
+    name: Deploy to Google Play Production track
+    runs-on: ubuntu-latest
+    needs: release-build
+    # Optional deployment: only for semantic version tags and when service account secret exists.
+    if: startsWith(github.ref, 'refs/tags/v') && secrets.SERVICE_ACCOUNT_JSON_BASE64 != ''
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Decode Google Play service account key
+        env:
+          SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.SERVICE_ACCOUNT_JSON_BASE64 }}
+        run: echo "$SERVICE_ACCOUNT_JSON_BASE64" | base64 --decode > service-account.json
+
+      - name: Download release AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-aab
+          path: dist
+
+      - name: Upload to Production track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: service-account.json
+          packageName: com.murari.careerpolitics
+          releaseFiles: dist/app-release.aab
+          track: production
+          status: completed
+
+      - name: Cleanup service account key
+        if: always()
+        run: rm -f service-account.json
