@@ -17,65 +17,50 @@ import android.graphics.Color
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
-import com.murari.careerpolitics.feature.deeplink.domain.ResolvedDeepLink
-import com.murari.careerpolitics.feature.deeplink.presentation.DeepLinkViewModel
-import com.murari.careerpolitics.feature.auth.presentation.AuthEffect
-import com.murari.careerpolitics.feature.auth.presentation.AuthViewModel
-import com.murari.careerpolitics.feature.notifications.domain.NotificationRegistrationError
-import com.murari.careerpolitics.feature.notifications.presentation.NotificationsEffect
-import com.murari.careerpolitics.feature.notifications.presentation.NotificationsViewModel
-import com.murari.careerpolitics.core.webview.bridge.WebViewBridgeRegistry
-import com.murari.careerpolitics.core.webview.settings.WebViewSettingsConfig
-import com.murari.careerpolitics.core.webview.settings.WebViewSettingsPolicy
-import com.murari.careerpolitics.feature.shell.presentation.ShellNavigationCommand
-import com.murari.careerpolitics.feature.shell.presentation.ShellRouteSource
-import com.murari.careerpolitics.feature.shell.presentation.ShellViewModel
+import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
 import com.murari.careerpolitics.util.network.OfflineWebViewClient
+import com.pusher.pushnotifications.PushNotifications
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import dagger.hilt.android.AndroidEntryPoint
 
-@AndroidEntryPoint
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
-    private val shellViewModel: ShellViewModel by viewModels()
-    private val deepLinkViewModel: DeepLinkViewModel by viewModels()
-    private val authViewModel: AuthViewModel by viewModels()
-    private val notificationsViewModel: NotificationsViewModel by viewModels()
     private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
-    private val webViewBridgeRegistry = WebViewBridgeRegistry()
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
     private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private var isGoogleSignInInProgress = false
+    private var pendingGoogleOAuthState: String? = null
     private var isSplashScreenReady = false
 
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                notificationsViewModel.onPermissionGranted()
-            }
+            if (isGranted) initializePushNotifications()
         }
 
     override fun layout(): Int = R.layout.activity_main
@@ -101,23 +86,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 handleCustomBackPressed()
             }
 
+            initGoogleSignIn()
             initGoogleSignInLauncher()
             setWebViewSettings()
 
             if (savedInstanceState != null) {
                 restoreState(savedInstanceState)
+            } else if (!handleAppLinkIntent(intent)) {
+                navigateToHome()
             }
-
-            observeShellState()
-            observeAuthState()
-            observeNotificationsState()
-            shellViewModel.resolveStartupRoute(
-                savedInstanceStateExists = savedInstanceState != null,
-                deepLinkUrl = resolveDeepLink(intent),
-                notificationUrl = extractNotificationUrl(intent),
-                homeUrl = AppConfig.baseUrl
-            )
-
+            handleNotificationIntent(intent)
             initGalleryLauncher()
 
             mainActivityScope.launch {
@@ -160,38 +138,136 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         }
     }
 
+    private fun initGoogleSignIn() {
+        val clientId = AppConfig.googleWebClientId
+        if (clientId.isBlank()) {
+            Logger.w(LOG_TAG, "Google web client ID not configured. Native Google login disabled.")
+            return
+        }
+
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestIdToken(clientId)
+            .requestServerAuthCode(clientId, true)
+            .build()
+
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+    }
+
     private fun initGoogleSignInLauncher() {
         googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            authViewModel.onGoogleSignInResult(
-                data = result.data,
-                baseUrl = AppConfig.baseUrl,
-                callbackPath = AppConfig.nativeGoogleLoginCallbackPath
-            )
+            isGoogleSignInInProgress = false
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val authCode = account.serverAuthCode
+                val idToken = account.idToken
+
+                if (authCode.isNullOrBlank() && idToken.isNullOrBlank()) {
+                    Logger.w(LOG_TAG, "Google sign-in succeeded without auth code or ID token")
+                    return@registerForActivityResult
+                }
+
+                completeNativeGoogleLogin(authCode, idToken)
+            } catch (exception: ApiException) {
+                Logger.e(LOG_TAG, "Native Google sign-in failed", exception)
+            }
         }
     }
 
     private fun launchNativeGoogleSignIn(oAuthUrl: String): Boolean {
-        return authViewModel.onGoogleOAuthRequested(oAuthUrl)
+        pendingGoogleOAuthState = oAuthUrl.toUri().getQueryParameter("state") ?: "navbar_basic"
+
+        if (!::googleSignInClient.isInitialized || !::googleSignInLauncher.isInitialized) {
+            Logger.w(LOG_TAG, "Google native sign-in is not initialized")
+            return false
+        }
+
+        if (isGoogleSignInInProgress) {
+            Logger.d(LOG_TAG, "Google sign-in already in progress")
+            return true
+        }
+
+        isGoogleSignInInProgress = true
+        googleSignInClient.signOut().addOnCompleteListener {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }
+
+        return true
+    }
+
+    private fun completeNativeGoogleLogin(authCode: String?, idToken: String?) {
+        val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
+            .trim()
+            .let { if (it.startsWith("/")) it else "/$it" }
+
+        val callbackUri = AppConfig.baseUrl.toUri().buildUpon()
+            .encodedPath(callbackPath)
+            .apply {
+                if (!authCode.isNullOrBlank()) {
+                    appendQueryParameter("code", authCode)
+                }
+                if (!idToken.isNullOrBlank()) {
+                    appendQueryParameter("id_token", idToken)
+                }
+                pendingGoogleOAuthState?.let { appendQueryParameter("state", it) }
+                appendQueryParameter("platform", "android")
+            }
+            .build()
+            .toString()
+
+        Logger.d(LOG_TAG, "Completing native Google login via callback URL")
+        binding?.webView?.loadUrl(callbackUri)
+        pendingGoogleOAuthState = null
     }
 
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val permission = Manifest.permission.POST_NOTIFICATIONS
-            val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-            if (granted) {
-                notificationsViewModel.onPermissionGranted()
-            } else {
-                notificationsViewModel.onNotificationPermissionRequired()
+            when {
+                ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED ->
+                    initializePushNotifications()
+
+                shouldShowRequestPermissionRationale(permission) ->
+                    requestNotificationPermissionLauncher.launch(permission)
+
+                else -> requestNotificationPermissionLauncher.launch(permission)
             }
         } else {
-            notificationsViewModel.onPermissionGranted()
+            initializePushNotifications()
+        }
+    }
+
+    private fun initializePushNotifications() {
+        try {
+            // Subscribe to Firebase topic using config
+            FirebaseMessaging.getInstance().subscribeToTopic(AppConfig.firebaseBroadcastTopic)
+
+            // Initialize Pusher with config-driven instance ID
+            PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
+            PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
+
+            Logger.d(LOG_TAG, "Push Notifications initialized(awaiting user auth for token registration)")
+        } catch (e: Exception) {
+            Logger.e(LOG_TAG, "Error initializing push notifications", e)
+
+            // Fallback: try to initialize without Firebase if it fails
+            try {
+                PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
+                PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
+
+                Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
+            } catch (fallbackException: Exception) {
+                Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        binding?.webView?.let { _ ->
-            shellViewModel.resolveResumeIntent(extractNotificationUrl(intent))
+        binding?.webView?.let { webView ->
+            handleNotificationIntent(intent)
             webViewClient.observeNetwork()
         }
     }
@@ -203,12 +279,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     override fun onDestroy() {
         super.onDestroy()
-        webViewBridge.release()
+        webViewBridge.terminatePodcast()
         mainActivityScope.cancel()
         
         // Clear WebView to prevent memory leaks
         binding?.webView?.let { webView ->
-            webViewBridgeRegistry.detach(webView)
             webView.clearHistory()
             webView.clearCache(true)
             webView.loadUrl("about:blank")
@@ -226,166 +301,77 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        shellViewModel.resolveIncomingIntent(
-            deepLinkUrl = resolveDeepLink(intent),
-            notificationUrl = extractNotificationUrl(intent)
-        )
-    }
 
-    private fun resolveDeepLink(intent: Intent?): String? {
-        return when (val resolved = deepLinkViewModel.resolve(intent)) {
-            is ResolvedDeepLink.Valid -> resolved.url
-            is ResolvedDeepLink.Invalid -> {
-                Logger.d(LOG_TAG, "Ignoring non-app deep link: ${resolved.candidate}")
-                null
-            }
-            ResolvedDeepLink.None -> null
+        if (!handleAppLinkIntent(intent)) {
+            handleNotificationIntent(intent)
         }
     }
 
-    private fun extractNotificationUrl(intent: Intent?): String? = intent?.getStringExtra("url")
 
-    private fun observeShellState() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                shellViewModel.uiState.collect { state ->
-                    val command = state.pendingNavigation ?: return@collect
-                    renderShellNavigation(command)
-                    shellViewModel.consumeNavigation()
-                }
-            }
+    private fun handleAppLinkIntent(intent: Intent?): Boolean {
+        val deepLinkUrl = intent?.dataString ?: return false
+
+        if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
+            Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
+            return false
         }
+
+        Logger.d(LOG_TAG, "Opening app link in WebView: $deepLinkUrl")
+        binding?.webView?.loadUrl(deepLinkUrl)
+        return true
     }
 
-    private fun renderShellNavigation(command: ShellNavigationCommand) {
-        when (command) {
-            is ShellNavigationCommand.LoadUrl -> {
-                binding?.webView?.loadUrl(command.url)
-                logNavigation(command)
-                if (command.source in setOf(
-                        ShellRouteSource.STARTUP_NOTIFICATION,
-                        ShellRouteSource.INCOMING_NOTIFICATION,
-                        ShellRouteSource.RESUME_NOTIFICATION
-                    )) {
-                    consumeNotificationExtras(intent)
-                }
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent == null) return
+
+        try {
+            val url = intent.getStringExtra("url")
+            val notificationType = intent.getStringExtra("notification_type")
+
+            val actionType = intent.getStringExtra("action")
+
+            if (url.isNullOrBlank()) {
+                Logger.d(LOG_TAG, "Notification intent received without URL, ignoring")
+                return
             }
-        }
-    }
 
-    private fun consumeNotificationExtras(intent: Intent?) {
-        intent?.removeExtra("url")
-        intent?.removeExtra("notification_type")
-    }
+            binding?.webView?.loadUrl(url)
 
-    private fun logNavigation(command: ShellNavigationCommand.LoadUrl) {
-        when (command.source) {
-            ShellRouteSource.STARTUP_DEEP_LINK,
-            ShellRouteSource.INCOMING_DEEP_LINK -> Logger.d(
+            Logger.d(
                 LOG_TAG,
-                "Opening app link in WebView: ${command.url}"
+                "Notification clicked: type=$notificationType, action=$actionType, url=$url"
             )
 
-            ShellRouteSource.STARTUP_NOTIFICATION,
-            ShellRouteSource.INCOMING_NOTIFICATION,
-            ShellRouteSource.RESUME_NOTIFICATION -> Logger.d(
-                LOG_TAG,
-                "Notification routed to WebView: ${command.url}"
-            )
+            intent.removeExtra("url")
+            intent.removeExtra("notification_type")
 
-            ShellRouteSource.STARTUP_HOME -> Logger.d(
-                LOG_TAG,
-                "Routing startup to home"
-            )
+        } catch (e: Exception) {
+            Logger.e(LOG_TAG, "Failed to handle notification intent", e)
         }
     }
 
-    private fun observeAuthState() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                authViewModel.uiState.collect { state ->
-                    val effect = state.pendingEffect ?: return@collect
-                    renderAuthEffect(effect)
-                    authViewModel.consumeEffect()
-                }
-            }
-        }
-    }
-
-    private fun renderAuthEffect(effect: AuthEffect) {
-        when (effect) {
-            is AuthEffect.LaunchGoogleSignIn -> googleSignInLauncher.launch(effect.intent)
-            is AuthEffect.CompleteGoogleLogin -> {
-                Logger.d(LOG_TAG, "Completing native Google login via callback URL")
-                binding?.webView?.loadUrl(effect.callbackUrl)
-            }
-            is AuthEffect.Error -> Logger.w(LOG_TAG, effect.message)
-        }
-    }
-
-    private fun observeNotificationsState() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                notificationsViewModel.uiState.collect { state ->
-                    state.effect?.let {
-                        renderNotificationEffect(it)
-                        notificationsViewModel.consumeEffect()
-                    }
-                    state.error?.let {
-                        renderNotificationError(it)
-                        notificationsViewModel.consumeError()
-                    }
-                }
-            }
-        }
-    }
-
-    private fun renderNotificationEffect(effect: NotificationsEffect) {
-        when (effect) {
-            NotificationsEffect.RequestPermission -> {
-                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-
-            NotificationsEffect.InitializePush -> {
-                notificationsViewModel.initializePushRegistration(
-                    topic = AppConfig.firebaseBroadcastTopic,
-                    instanceId = AppConfig.pusherInstanceId,
-                    interest = AppConfig.pusherDeviceInterest
-                )
-            }
-        }
-    }
-
-    private fun renderNotificationError(error: NotificationRegistrationError) {
-        when (error) {
-            is NotificationRegistrationError.Recoverable -> Logger.e(
-                LOG_TAG,
-                "Push registration recoverable failure: reason=${error.reason}, attempt=${error.attempt}",
-                error.throwable
-            )
-
-            is NotificationRegistrationError.Fatal -> Logger.e(
-                LOG_TAG,
-                "Push registration fatal failure: reason=${error.reason}",
-                error.throwable
-            )
-        }
-    }
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->
-            val settingsPolicy = WebViewSettingsPolicy(
-                WebViewSettingsConfig(
-                    enableDebugging = AppConfig.enableWebViewDebugging,
-                    enableJavaScript = AppConfig.enableJavaScript,
-                    enableDomStorage = AppConfig.enableDomStorage,
-                    userAgent = AppConfig.userAgent
-                )
-            )
-            settingsPolicy.apply(webView)
+            // Enable remote debugging only in debug/staging builds
+            WebView.setWebContentsDebuggingEnabled(AppConfig.enableWebViewDebugging)
 
-            webViewBridgeRegistry.register("Android", webViewBridge)
-            webViewBridgeRegistry.attach(webView)
+            with(webView.settings) {
+                javaScriptEnabled = AppConfig.enableJavaScript
+                domStorageEnabled = AppConfig.enableDomStorage
+                userAgentString = AppConfig.userAgent
+
+                // Additional security settings
+                allowFileAccess = false // Prevent file:// URL access
+                allowContentAccess = true // Allow content:// URLs for image picking
+                databaseEnabled = true // Required for DOM storage
+
+                // Performance settings
+                cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+            }
+
+            webView.addJavascriptInterface(webViewBridge, "Android")
 
             webViewClient = OfflineWebViewClient(
                 this,
@@ -460,6 +446,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private fun restoreState(savedInstanceState: Bundle) {
         binding?.webView?.restoreState(savedInstanceState)
+    }
+
+    private fun navigateToHome() {
+        binding?.webView?.loadUrl(AppConfig.baseUrl)
     }
 
     fun handleCustomBackPressed() {

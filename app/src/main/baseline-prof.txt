@@ -1,8 +1,0 @@
-HSPLcom/murari/careerpolitics/activities/MainActivity;
-HSPLcom/murari/careerpolitics/activities/StarterApplication;
-HSPLcom/murari/careerpolitics/webclients/CustomWebViewClient;
-HSPLcom/murari/careerpolitics/util/AndroidWebViewBridge;
-HSPLcom/murari/careerpolitics/feature/shell/presentation/ShellViewModel;
-HSPLcom/murari/careerpolitics/feature/auth/presentation/AuthViewModel;
-HSPLcom/murari/careerpolitics/feature/deeplink/presentation/DeepLinkViewModel;
-HSPLcom/murari/careerpolitics/feature/notifications/presentation/NotificationsViewModel;

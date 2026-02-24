@@ -11,8 +11,9 @@ import com.google.android.exoplayer2.source.hls.HlsMediaSource
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityVideoPlayerBinding
-import com.murari.careerpolitics.feature.media.channel.MediaBridgeChannel
-import com.murari.careerpolitics.feature.media.channel.MediaBridgeEvent
+import com.murari.careerpolitics.events.VideoPlayerPauseEvent
+import com.murari.careerpolitics.events.VideoPlayerTickEvent
+import org.greenrobot.eventbus.EventBus
 import java.util.*
 import androidx.core.net.toUri
 
@@ -60,7 +61,7 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
                 override fun run() {
                     player?.currentPosition?.let {
                         val currentSeconds = (it / 1000).toString()
-                        MediaBridgeChannel.emit(MediaBridgeEvent.VideoTick(currentSeconds))
+                        EventBus.getDefault().post(VideoPlayerTickEvent(currentSeconds))
                     }
                 }
             }, 0, 1000)
@@ -73,7 +74,7 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
         timer = null
         player?.release()
         player = null
-        MediaBridgeChannel.emit(MediaBridgeEvent.VideoPaused)
+        EventBus.getDefault().post(VideoPlayerPauseEvent())
     }
 
     companion object {
