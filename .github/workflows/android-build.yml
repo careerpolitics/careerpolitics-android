@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -20,10 +20,16 @@ env:
   JAVA_VERSION: "21"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   versioning:
     name: Versioning automation
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version_name: ${{ steps.version.outputs.version_tag }}
       version_code: ${{ steps.meta.outputs.version_code }}
@@ -90,6 +96,11 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
 
+      - name: Prepare google-services.json
+        run: ./.github/scripts/prepare-google-services.sh
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+
       - name: Run detekt + android lint
         run: ./gradlew help projects detekt :app:lintRelease
 
@@ -127,6 +138,11 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
 
+      - name: Prepare google-services.json
+        run: ./.github/scripts/prepare-google-services.sh
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
@@ -157,6 +173,11 @@ jobs:
 
       - name: Grant execute permission
         run: chmod +x gradlew
+
+      - name: Prepare google-services.json
+        run: ./.github/scripts/prepare-google-services.sh
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
@@ -189,6 +210,11 @@ jobs:
 
       - name: Grant execute permission
         run: chmod +x gradlew
+
+      - name: Prepare google-services.json
+        run: ./.github/scripts/prepare-google-services.sh
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
 
       - name: Prepare signing keystore
         shell: bash
