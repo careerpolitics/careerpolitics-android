@@ -26,7 +26,7 @@ open class CustomWebViewClient(
     private val view: WebView,
     private val coroutineScope: CoroutineScope,
     private val onPageFinish: () -> Unit,
-    private val onGoogleNativeSignInRequested: (() -> Boolean)? = null
+    private val onGoogleNativeSignInRequested: ((String) -> Boolean)? = null
 ) : WebViewClient() {
 
     companion object {
@@ -148,7 +148,7 @@ open class CustomWebViewClient(
         }
 
         if (shouldStartNativeGoogleSignIn(host, url)) {
-            val handledByNativeFlow = onGoogleNativeSignInRequested?.invoke() == true
+            val handledByNativeFlow = onGoogleNativeSignInRequested?.invoke(url) == true
             if (handledByNativeFlow) {
                 Logger.d(LOG_TAG, "Starting native Google sign-in flow")
                 return true

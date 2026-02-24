@@ -55,6 +55,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
     private lateinit var googleSignInClient: GoogleSignInClient
     private var isGoogleSignInInProgress = false
+    private var pendingGoogleOAuthState: String? = null
     private var isSplashScreenReady = false
 
     private val requestNotificationPermissionLauncher =
@@ -147,6 +148,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestIdToken(clientId)
+            .requestServerAuthCode(clientId, true)
             .build()
 
         googleSignInClient = GoogleSignIn.getClient(this, gso)
@@ -159,20 +161,24 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             try {
                 val account = task.getResult(ApiException::class.java)
+                val authCode = account.serverAuthCode
                 val idToken = account.idToken
-                if (idToken.isNullOrBlank()) {
-                    Logger.w(LOG_TAG, "Google sign-in succeeded without ID token")
+
+                if (authCode.isNullOrBlank() && idToken.isNullOrBlank()) {
+                    Logger.w(LOG_TAG, "Google sign-in succeeded without auth code or ID token")
                     return@registerForActivityResult
                 }
 
-                completeNativeGoogleLogin(idToken)
+                completeNativeGoogleLogin(authCode, idToken)
             } catch (exception: ApiException) {
                 Logger.e(LOG_TAG, "Native Google sign-in failed", exception)
             }
         }
     }
 
-    private fun launchNativeGoogleSignIn(): Boolean {
+    private fun launchNativeGoogleSignIn(oAuthUrl: String): Boolean {
+        pendingGoogleOAuthState = oAuthUrl.toUri().getQueryParameter("state") ?: "navbar_basic"
+
         if (!::googleSignInClient.isInitialized || !::googleSignInLauncher.isInitialized) {
             Logger.w(LOG_TAG, "Google native sign-in is not initialized")
             return false
@@ -191,20 +197,29 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         return true
     }
 
-    private fun completeNativeGoogleLogin(idToken: String) {
+    private fun completeNativeGoogleLogin(authCode: String?, idToken: String?) {
         val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
             .trim()
             .let { if (it.startsWith("/")) it else "/$it" }
 
         val callbackUri = AppConfig.baseUrl.toUri().buildUpon()
             .encodedPath(callbackPath)
-            .appendQueryParameter("id_token", idToken)
-            .appendQueryParameter("platform", "android")
+            .apply {
+                if (!authCode.isNullOrBlank()) {
+                    appendQueryParameter("code", authCode)
+                }
+                if (!idToken.isNullOrBlank()) {
+                    appendQueryParameter("id_token", idToken)
+                }
+                pendingGoogleOAuthState?.let { appendQueryParameter("state", it) }
+                appendQueryParameter("platform", "android")
+            }
             .build()
             .toString()
 
         Logger.d(LOG_TAG, "Completing native Google login via callback URL")
         binding?.webView?.loadUrl(callbackUri)
+        pendingGoogleOAuthState = null
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -363,7 +378,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 webView,
                 mainActivityScope,
                 onPageFinish = { webView.visibility = View.VISIBLE },
-                onGoogleNativeSignInRequested = { launchNativeGoogleSignIn() }
+                onGoogleNativeSignInRequested = { authUrl -> launchNativeGoogleSignIn(authUrl) }
             )
 
             webView.webViewClient = webViewClient as WebViewClient

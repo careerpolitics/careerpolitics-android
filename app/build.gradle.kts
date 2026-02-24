@@ -53,7 +53,7 @@ android {
         buildConfigField("String", "FIREBASE_TOPIC", "\"all\"")
         buildConfigField("String", "PUSHER_INTEREST", "\"broadcast\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${getSecret("google.web.client.id", "GOOGLE_WEB_CLIENT_ID", "")}\"")
-        buildConfigField("String", "NATIVE_GOOGLE_LOGIN_CALLBACK_PATH", "\"${getSecret("native.google.login.path", "NATIVE_GOOGLE_LOGIN_PATH", "/auth/google_oauth2/native_callback")}\"")
+        buildConfigField("String", "NATIVE_GOOGLE_LOGIN_CALLBACK_PATH", "\"${getSecret("native.google.login.path", "NATIVE_GOOGLE_LOGIN_PATH", "/users/auth/google_oauth2/callback")}\"")
     }
 
     // Build performance optimizations
