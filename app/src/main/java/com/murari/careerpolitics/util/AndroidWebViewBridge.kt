@@ -6,9 +6,7 @@ import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.util.Logger
 import android.webkit.JavascriptInterface
 import android.widget.Toast
-import com.murari.careerpolitics.core.webview.bridge.BridgeCommandParser
-import com.murari.careerpolitics.core.webview.bridge.PodcastBridgeCommand
-import com.murari.careerpolitics.core.webview.bridge.VideoBridgeCommand
+import com.google.gson.Gson
 import com.murari.careerpolitics.activities.VideoPlayerActivity
 import com.murari.careerpolitics.events.VideoPlayerPauseEvent
 import com.murari.careerpolitics.events.VideoPlayerTickEvent
@@ -26,7 +24,7 @@ class AndroidWebViewBridge(private val context: Context) {
     private var timer: Timer? = null
     private var audioService: AudioService? = null
 
-    private val commandParser = BridgeCommandParser()
+    private val gson = Gson()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -74,30 +72,42 @@ class AndroidWebViewBridge(private val context: Context) {
     // Podcast control from WebView
     @JavascriptInterface
     fun podcastMessage(message: String) {
-        when (val command = commandParser.parsePodcast(message)) {
-            is PodcastBridgeCommand.Load -> loadPodcast(command.url)
-            is PodcastBridgeCommand.Play -> audioService?.play(command.url, command.seconds)
-            PodcastBridgeCommand.Pause -> audioService?.pause()
-            is PodcastBridgeCommand.Seek -> audioService?.seekTo(command.seconds)
-            is PodcastBridgeCommand.Rate -> audioService?.rate(command.rate)
-            is PodcastBridgeCommand.Muted -> audioService?.mute(command.muted)
-            is PodcastBridgeCommand.Volume -> audioService?.volume(command.volume)
-            is PodcastBridgeCommand.Metadata -> audioService?.loadMetadata(
-                command.episodeName,
-                command.podcastName,
-                command.imageUrl
+        val map = try {
+            gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
+        } catch (e: Exception) {
+            Logger.e(LOG_TAG, "Podcast JSON parse error", e)
+            return
+        }
+
+        when (map["action"]) {
+            "load"      -> loadPodcast(map["url"])
+            "play"      -> audioService?.play(map["url"], map["seconds"])
+            "pause"     -> audioService?.pause()
+            "seek"      -> audioService?.seekTo(map["seconds"])
+            "rate"      -> audioService?.rate(map["rate"])
+            "muted"     -> audioService?.mute(map["muted"])
+            "volume"    -> audioService?.volume(map["volume"])
+            "metadata"  -> audioService?.loadMetadata(
+                map["episodeName"], map["podcastName"], map["imageUrl"]
             )
-            PodcastBridgeCommand.Terminate -> terminatePodcast()
-            is PodcastBridgeCommand.Unknown -> Logger.w(LOG_TAG, "Unknown podcast action: ${command.action}")
+            "terminate" -> terminatePodcast()
+            else        -> Logger.w(LOG_TAG, "Unknown podcast action: ${map["action"]}")
         }
     }
 
     // Video playback control from WebView
     @JavascriptInterface
     fun videoMessage(message: String) {
-        when (val command = commandParser.parseVideo(message)) {
-            is VideoBridgeCommand.Play -> playVideo(command.url, command.seconds)
-            is VideoBridgeCommand.Unknown -> Logger.w(LOG_TAG, "Unknown video action: ${command.action}")
+        val map = try {
+            gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
+        } catch (e: Exception) {
+            Logger.e(LOG_TAG, "Video JSON parse error", e)
+            return
+        }
+
+        when (map["action"]) {
+            "play" -> playVideo(map["url"], map["seconds"])
+            else   -> Logger.w(LOG_TAG, "Unknown video action: ${map["action"]}")
         }
     }
 

@@ -275,7 +275,6 @@ dependencies {
 
     // Modular foundation
     implementation(project(":core:common"))
-    implementation(project(":core:webview"))
     implementation(project(":feature:shell"))
     implementation(project(":feature:deeplink"))
     implementation(project(":feature:auth"))

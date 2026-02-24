@@ -8,9 +8,7 @@ import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.*
 import androidx.browser.customtabs.CustomTabsIntent
-import com.murari.careerpolitics.core.webview.navigation.WebNavigationConfig
-import com.murari.careerpolitics.core.webview.navigation.WebNavigationDecision
-import com.murari.careerpolitics.core.webview.navigation.WebNavigationDecisionEngine
+import androidx.core.net.toUri
 import com.murari.careerpolitics.events.NetworkStatusEvent
 import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.network.NetworkStatus
@@ -35,20 +33,19 @@ open class CustomWebViewClient(
         private const val LOG_TAG = "CustomWebViewClient"
     }
 
-    private val navigationEngine = WebNavigationDecisionEngine(
-        WebNavigationConfig(
-            overrideUrlList = listOf(
-                AppConfig.baseDomain,
-                "api.twitter.com/oauth",
-                "api.twitter.com/login/error",
-                "api.twitter.com/account/login_verification",
-                "github.com/login",
-                "github.com/sessions/"
-            ),
-            googleAuthHosts = setOf("accounts.google.com", "oauth2.googleapis.com"),
-            baseDomain = AppConfig.baseDomain,
-            clearCacheRoutes = AppConfig.clearCacheRoutes
-        )
+    // URLs that should NOT be opened in external browser (OAuth flows, internal pages)
+    private val overrideUrlList = listOf(
+        AppConfig.baseDomain, // Our base domain
+        "api.twitter.com/oauth",
+        "api.twitter.com/login/error",
+        "api.twitter.com/account/login_verification",
+        "github.com/login",
+        "github.com/sessions/"
+    )
+
+    private val googleAuthHosts = setOf(
+        "accounts.google.com",
+        "oauth2.googleapis.com"
     )
 
     private var registeredUserNotifications = false
@@ -136,37 +133,50 @@ open class CustomWebViewClient(
     private fun handleUrlOverride(view: WebView, url: String): Boolean {
         Logger.d(LOG_TAG, "Intercepting URL: $url")
 
-        when (val decision = navigationEngine.evaluate(url)) {
-            is WebNavigationDecision.AllowInWebView -> return false
+        val parsedUri = url.toUri()
+        val host = parsedUri.host.orEmpty().lowercase()
 
-            is WebNavigationDecision.StartNativeGoogleSignIn -> {
-                if (decision.clearCache) clearWebViewSession(view, url)
+        // Clear cache/cookies on specific routes (e.g., login/logout)
+        if (AppConfig.clearCacheRoutes.any { url.startsWith(it) }) {
+            Logger.d(LOG_TAG, "Clearing cache for route: $url")
+            view.clearCache(true)
+            view.clearFormData()
+            view.clearHistory()
+            CookieManager.getInstance().apply {
+            removeAllCookies(null)
+            }
+        }
 
-                val handledByNativeFlow = onGoogleNativeSignInRequested?.invoke(decision.url) == true
-                if (handledByNativeFlow) {
-                    Logger.d(LOG_TAG, "Starting native Google sign-in flow")
-                    return true
-                }
-
-                Logger.w(LOG_TAG, "Native Google sign-in unavailable, falling back to Custom Tab")
-                launchCustomTab(decision.url)
+        if (shouldStartNativeGoogleSignIn(host, url)) {
+            val handledByNativeFlow = onGoogleNativeSignInRequested?.invoke(url) == true
+            if (handledByNativeFlow) {
+                Logger.d(LOG_TAG, "Starting native Google sign-in flow")
                 return true
             }
 
-            is WebNavigationDecision.OpenExternal -> {
-                if (decision.clearCache) clearWebViewSession(view, url)
-                launchCustomTab(decision.url)
+            Logger.w(LOG_TAG, "Native Google sign-in unavailable, falling back to Custom Tab")
+            launchCustomTab(url)
+            return true
+        }
+
+        if (overrideUrlList.any { url.contains(it) }) return false
+
+        launchCustomTab(url)
+
+        return true
+    }
+
+    private fun shouldStartNativeGoogleSignIn(host: String, url: String): Boolean {
+        if (host in googleAuthHosts) return true
+
+        if (host.endsWith(AppConfig.baseDomain)) {
+            val normalizedPath = url.toUri().path.orEmpty().lowercase()
+            if (normalizedPath.contains("google") && normalizedPath.contains("auth")) {
                 return true
             }
         }
-    }
 
-    private fun clearWebViewSession(view: WebView, url: String) {
-        Logger.d(LOG_TAG, "Clearing cache for route: $url")
-        view.clearCache(true)
-        view.clearFormData()
-        view.clearHistory()
-        CookieManager.getInstance().removeAllCookies(null)
+        return false
     }
 
     private fun launchCustomTab(url: String) {
