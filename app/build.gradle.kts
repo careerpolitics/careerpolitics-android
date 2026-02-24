@@ -36,8 +36,12 @@ android {
         applicationId = "com.murari.careerpolitics"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.0.0"
+
+        // CI can inject deterministic version metadata without editing source.
+        val ciVersionCode = System.getenv("CI_VERSION_CODE")?.toIntOrNull()
+        val ciVersionName = System.getenv("CI_VERSION_NAME")
+        versionCode = ciVersionCode ?: 6
+        versionName = ciVersionName ?: "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
