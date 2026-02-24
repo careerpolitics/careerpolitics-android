@@ -1,5 +1,6 @@
 package com.murari.careerpolitics.core.webview.bridge
 
+import android.annotation.SuppressLint
 import android.os.Build
 import android.webkit.WebView
 import com.murari.careerpolitics.core.webview.lifecycle.WebViewAttachable
@@ -11,6 +12,7 @@ class WebViewBridgeRegistry : WebViewAttachable {
         bridges[name] = bridge
     }
 
+    @SuppressLint("JavascriptInterface")
     override fun attach(webView: WebView) {
         bridges.forEach { (name, bridge) -> webView.addJavascriptInterface(bridge, name) }
     }

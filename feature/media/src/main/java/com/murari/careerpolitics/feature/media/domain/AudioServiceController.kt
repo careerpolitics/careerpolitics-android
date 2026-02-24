@@ -1,5 +1,6 @@
 package com.murari.careerpolitics.feature.media.domain
 
+@Suppress("TooManyFunctions")
 interface AudioServiceController {
     fun load(url: String)
     fun play(url: String?, seconds: String?)

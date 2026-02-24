@@ -17,8 +17,8 @@ class RegisterNotificationsUseCase @Inject constructor(
             try {
                 repository.register(topic, instanceId, interest)
                 return Result.success(Unit)
-            } catch (throwable: Throwable) {
-                lastError = throwable
+            } catch (exception: Exception) {
+                lastError = exception
             }
         }
 

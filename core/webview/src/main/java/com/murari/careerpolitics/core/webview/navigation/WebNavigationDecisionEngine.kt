@@ -21,28 +21,21 @@ class WebNavigationDecisionEngine(
     fun evaluate(url: String): WebNavigationDecision {
         val host = url.toUri().host.orEmpty().lowercase()
         val clearCache = config.clearCacheRoutes.any { url.startsWith(it) }
+        val shouldStartNativeGoogle = shouldStartNativeGoogleSignIn(host, url)
+        val shouldAllowInWebView = config.overrideUrlList.any { url.contains(it) }
 
-        if (shouldStartNativeGoogleSignIn(host, url)) {
-            return WebNavigationDecision.StartNativeGoogleSignIn(url, clearCache)
+        return when {
+            shouldStartNativeGoogle -> WebNavigationDecision.StartNativeGoogleSignIn(url, clearCache)
+            shouldAllowInWebView -> WebNavigationDecision.AllowInWebView
+            else -> WebNavigationDecision.OpenExternal(url, clearCache)
         }
-
-        if (config.overrideUrlList.any { url.contains(it) }) {
-            return WebNavigationDecision.AllowInWebView
-        }
-
-        return WebNavigationDecision.OpenExternal(url, clearCache)
     }
 
     private fun shouldStartNativeGoogleSignIn(host: String, url: String): Boolean {
-        if (host in config.googleAuthHosts) return true
-
-        if (host.endsWith(config.baseDomain)) {
-            val normalizedPath = url.toUri().path.orEmpty().lowercase()
-            if (normalizedPath.contains("google") && normalizedPath.contains("auth")) {
-                return true
-            }
-        }
-
-        return false
+        val isKnownGoogleAuthHost = host in config.googleAuthHosts
+        val isProjectHost = host.endsWith(config.baseDomain)
+        val normalizedPath = url.toUri().path.orEmpty().lowercase()
+        val isGoogleAuthPath = normalizedPath.contains("google") && normalizedPath.contains("auth")
+        return isKnownGoogleAuthHost || (isProjectHost && isGoogleAuthPath)
     }
 }

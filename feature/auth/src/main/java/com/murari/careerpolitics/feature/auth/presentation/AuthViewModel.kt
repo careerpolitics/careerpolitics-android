@@ -1,7 +1,6 @@
 package com.murari.careerpolitics.feature.auth.presentation
 
 import android.content.Intent
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.murari.careerpolitics.data.auth.adapter.GoogleSignInAdapter
 import com.murari.careerpolitics.feature.auth.domain.BuildGoogleCallbackUrlUseCase
@@ -22,26 +21,26 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     fun onGoogleOAuthRequested(oAuthUrl: String): Boolean {
-        if (_uiState.value.isGoogleSignInInProgress) return true
-
-        val state = Uri.parse(oAuthUrl).getQueryParameter("state") ?: "navbar_basic"
-
-        if (!googleSignInAdapter.isConfigured()) {
-            emitEffect(AuthEffect.Error("Google native sign-in is not configured"))
-            return false
-        }
-
+        val state = extractStateFromOAuthUrl(oAuthUrl)
         val signInIntent = googleSignInAdapter.launchIntent()
-        if (signInIntent == null) {
-            emitEffect(AuthEffect.Error("Failed to launch Google sign-in"))
-            return false
+        val isConfigured = googleSignInAdapter.isConfigured()
+        val hasIntent = signInIntent != null
+        val canProceed = !_uiState.value.isGoogleSignInInProgress && isConfigured && hasIntent
+
+        if (!canProceed) {
+            when {
+                _uiState.value.isGoogleSignInInProgress -> Unit
+                !isConfigured -> emitEffect(AuthEffect.Error("Google native sign-in is not configured"))
+                else -> emitEffect(AuthEffect.Error("Failed to launch Google sign-in"))
+            }
+            return _uiState.value.isGoogleSignInInProgress
         }
 
         _uiState.update {
             it.copy(
                 pendingOAuthState = state,
                 isGoogleSignInInProgress = true,
-                pendingEffect = AuthEffect.LaunchGoogleSignIn(signInIntent)
+                pendingEffect = AuthEffect.LaunchGoogleSignIn(signInIntent!!)
             )
         }
         return true
@@ -78,5 +77,19 @@ class AuthViewModel @Inject constructor(
 
     private fun emitEffect(effect: AuthEffect) {
         _uiState.update { it.copy(pendingEffect = effect) }
+    }
+
+    private fun extractStateFromOAuthUrl(oAuthUrl: String): String {
+        val stateValue = oAuthUrl
+            .substringAfter("?", missingDelimiterValue = "")
+            .split("&")
+            .mapNotNull { param ->
+                val key = param.substringBefore("=", missingDelimiterValue = "")
+                val value = param.substringAfter("=", missingDelimiterValue = "")
+                if (key == "state") value else null
+            }
+            .firstOrNull()
+
+        return stateValue.orEmpty().ifBlank { "navbar_basic" }
     }
 }
