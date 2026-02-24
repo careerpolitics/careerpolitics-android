@@ -79,7 +79,3 @@ Use this as the single checklist before merging/refactoring/releasing.
 ./gradlew assembleDebug
 ./gradlew assembleRelease bundleRelease
 ```
-
-
-## 10) Deployment runbook
-- [ ] Follow `docs/checklists/RELEASE_AND_DEPLOYMENT_CHECKLIST.md` for staging/production rollout.

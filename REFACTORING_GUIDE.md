@@ -18,10 +18,6 @@
 
 For the modular MVVM + Clean Architecture migration plan, see `docs/architecture/ARCHITECTURE_REDESIGN_2026.md`.
 
-Release/deployment runbooks:
-- `docs/checklists/ENVIRONMENT_AND_RELEASE_CHECKLIST.md`
-- `docs/checklists/RELEASE_AND_DEPLOYMENT_CHECKLIST.md`
-
 ---
 
 This refactoring eliminates hard-coded configuration, separates concerns, and implements production-grade security practices for the Career Politics Android application.
