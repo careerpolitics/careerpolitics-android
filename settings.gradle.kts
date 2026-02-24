@@ -21,4 +21,4 @@ include(":feature:shell")
 include(":feature:deeplink")
 include(":feature:auth")
 include(":feature:notifications")
-include(":data:auth")
+ 

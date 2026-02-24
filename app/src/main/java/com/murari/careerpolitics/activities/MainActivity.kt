@@ -19,6 +19,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -29,13 +30,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.feature.deeplink.domain.ResolvedDeepLink
 import com.murari.careerpolitics.feature.deeplink.presentation.DeepLinkViewModel
-import com.murari.careerpolitics.feature.auth.presentation.AuthEffect
-import com.murari.careerpolitics.feature.auth.presentation.AuthViewModel
 import com.murari.careerpolitics.feature.shell.presentation.ShellNavigationCommand
 import com.murari.careerpolitics.feature.shell.presentation.ShellRouteSource
 import com.murari.careerpolitics.feature.shell.presentation.ShellViewModel
@@ -55,7 +58,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private val shellViewModel: ShellViewModel by viewModels()
     private val deepLinkViewModel: DeepLinkViewModel by viewModels()
-    private val authViewModel: AuthViewModel by viewModels()
     private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
@@ -63,6 +65,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
     private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private var isGoogleSignInInProgress = false
+    private var pendingGoogleOAuthState: String? = null
     private var isSplashScreenReady = false
 
     private val requestNotificationPermissionLauncher =
@@ -93,6 +98,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 handleCustomBackPressed()
             }
 
+            initGoogleSignIn()
             initGoogleSignInLauncher()
             setWebViewSettings()
 
@@ -101,7 +107,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             }
 
             observeShellState()
-            observeAuthState()
             shellViewModel.resolveStartupRoute(
                 savedInstanceStateExists = savedInstanceState != null,
                 deepLinkUrl = resolveDeepLink(intent),
@@ -151,18 +156,88 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         }
     }
 
+    private fun initGoogleSignIn() {
+        val clientId = AppConfig.googleWebClientId
+        if (clientId.isBlank()) {
+            Logger.w(LOG_TAG, "Google web client ID not configured. Native Google login disabled.")
+            return
+        }
+
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestIdToken(clientId)
+            .requestServerAuthCode(clientId, true)
+            .build()
+
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+    }
+
     private fun initGoogleSignInLauncher() {
         googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            authViewModel.onGoogleSignInResult(
-                data = result.data,
-                baseUrl = AppConfig.baseUrl,
-                callbackPath = AppConfig.nativeGoogleLoginCallbackPath
-            )
+            isGoogleSignInInProgress = false
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val authCode = account.serverAuthCode
+                val idToken = account.idToken
+
+                if (authCode.isNullOrBlank() && idToken.isNullOrBlank()) {
+                    Logger.w(LOG_TAG, "Google sign-in succeeded without auth code or ID token")
+                    return@registerForActivityResult
+                }
+
+                completeNativeGoogleLogin(authCode, idToken)
+            } catch (exception: ApiException) {
+                Logger.e(LOG_TAG, "Native Google sign-in failed", exception)
+            }
         }
     }
 
     private fun launchNativeGoogleSignIn(oAuthUrl: String): Boolean {
-        return authViewModel.onGoogleOAuthRequested(oAuthUrl)
+        pendingGoogleOAuthState = oAuthUrl.toUri().getQueryParameter("state") ?: "navbar_basic"
+
+        if (!::googleSignInClient.isInitialized || !::googleSignInLauncher.isInitialized) {
+            Logger.w(LOG_TAG, "Google native sign-in is not initialized")
+            return false
+        }
+
+        if (isGoogleSignInInProgress) {
+            Logger.d(LOG_TAG, "Google sign-in already in progress")
+            return true
+        }
+
+        isGoogleSignInInProgress = true
+        googleSignInClient.signOut().addOnCompleteListener {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }
+
+        return true
+    }
+
+    private fun completeNativeGoogleLogin(authCode: String?, idToken: String?) {
+        val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
+            .trim()
+            .let { if (it.startsWith("/")) it else "/$it" }
+
+        val callbackUri = AppConfig.baseUrl.toUri().buildUpon()
+            .encodedPath(callbackPath)
+            .apply {
+                if (!authCode.isNullOrBlank()) {
+                    appendQueryParameter("code", authCode)
+                }
+                if (!idToken.isNullOrBlank()) {
+                    appendQueryParameter("id_token", idToken)
+                }
+                pendingGoogleOAuthState?.let { appendQueryParameter("state", it) }
+                appendQueryParameter("platform", "android")
+            }
+            .build()
+            .toString()
+
+        Logger.d(LOG_TAG, "Completing native Google login via callback URL")
+        binding?.webView?.loadUrl(callbackUri)
+        pendingGoogleOAuthState = null
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -315,29 +390,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 LOG_TAG,
                 "Routing startup to home"
             )
-        }
-    }
-
-    private fun observeAuthState() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                authViewModel.uiState.collect { state ->
-                    val effect = state.pendingEffect ?: return@collect
-                    renderAuthEffect(effect)
-                    authViewModel.consumeEffect()
-                }
-            }
-        }
-    }
-
-    private fun renderAuthEffect(effect: AuthEffect) {
-        when (effect) {
-            is AuthEffect.LaunchGoogleSignIn -> googleSignInLauncher.launch(effect.intent)
-            is AuthEffect.CompleteGoogleLogin -> {
-                Logger.d(LOG_TAG, "Completing native Google login via callback URL")
-                binding?.webView?.loadUrl(effect.callbackUrl)
-            }
-            is AuthEffect.Error -> Logger.w(LOG_TAG, effect.message)
         }
     }
 
