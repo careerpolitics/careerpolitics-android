@@ -14,6 +14,12 @@
 
 ## 🎯 Overview
 
+## 🧭 2026 Architecture Redesign
+
+For the modular MVVM + Clean Architecture migration plan, see `docs/architecture/ARCHITECTURE_REDESIGN_2026.md`.
+
+---
+
 This refactoring eliminates hard-coded configuration, separates concerns, and implements production-grade security practices for the Career Politics Android application.
 
 ### What Changed
