@@ -17,6 +17,7 @@ dependencyResolutionManagement {
 rootProject.name = "CareerPolitics"
 include(":app")
 include(":core:common")
+include(":core:webview")
 include(":feature:shell")
 include(":feature:deeplink")
 include(":feature:auth")

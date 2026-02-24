@@ -38,6 +38,9 @@ import com.murari.careerpolitics.feature.auth.presentation.AuthViewModel
 import com.murari.careerpolitics.feature.notifications.domain.NotificationRegistrationError
 import com.murari.careerpolitics.feature.notifications.presentation.NotificationsEffect
 import com.murari.careerpolitics.feature.notifications.presentation.NotificationsViewModel
+import com.murari.careerpolitics.core.webview.bridge.WebViewBridgeRegistry
+import com.murari.careerpolitics.core.webview.settings.WebViewSettingsConfig
+import com.murari.careerpolitics.core.webview.settings.WebViewSettingsPolicy
 import com.murari.careerpolitics.feature.shell.presentation.ShellNavigationCommand
 import com.murari.careerpolitics.feature.shell.presentation.ShellRouteSource
 import com.murari.careerpolitics.feature.shell.presentation.ShellViewModel
@@ -60,6 +63,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val notificationsViewModel: NotificationsViewModel by viewModels()
     private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
+    private val webViewBridgeRegistry = WebViewBridgeRegistry()
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
 
@@ -204,6 +208,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         
         // Clear WebView to prevent memory leaks
         binding?.webView?.let { webView ->
+            webViewBridgeRegistry.detach(webView)
             webView.clearHistory()
             webView.clearCache(true)
             webView.loadUrl("about:blank")
@@ -369,25 +374,18 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->
-            // Enable remote debugging only in debug/staging builds
-            WebView.setWebContentsDebuggingEnabled(AppConfig.enableWebViewDebugging)
+            val settingsPolicy = WebViewSettingsPolicy(
+                WebViewSettingsConfig(
+                    enableDebugging = AppConfig.enableWebViewDebugging,
+                    enableJavaScript = AppConfig.enableJavaScript,
+                    enableDomStorage = AppConfig.enableDomStorage,
+                    userAgent = AppConfig.userAgent
+                )
+            )
+            settingsPolicy.apply(webView)
 
-            with(webView.settings) {
-                javaScriptEnabled = AppConfig.enableJavaScript
-                domStorageEnabled = AppConfig.enableDomStorage
-                userAgentString = AppConfig.userAgent
-
-                // Additional security settings
-                allowFileAccess = false // Prevent file:// URL access
-                allowContentAccess = true // Allow content:// URLs for image picking
-                databaseEnabled = true // Required for DOM storage
-
-                // Performance settings
-                cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
-                setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
-            }
-
-            webView.addJavascriptInterface(webViewBridge, "Android")
+            webViewBridgeRegistry.register("Android", webViewBridge)
+            webViewBridgeRegistry.attach(webView)
 
             webViewClient = OfflineWebViewClient(
                 this,
