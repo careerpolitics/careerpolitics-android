@@ -32,8 +32,13 @@ gradle.projectsEvaluated {
                     }
                 }
                 .filter { dependency -> dependency.dependencyProject.path.startsWith(featurePrefix) }
+                .filter { dependency -> dependency.dependencyProject.path != featureProject.path }
             check(forbidden.isEmpty()) {
-                val modules = forbidden.joinToString { it.dependencyProject.path }
+                val modules = forbidden
+                    .map { it.dependencyProject.path }
+                    .distinct()
+                    .sorted()
+                    .joinToString()
                 "Module boundary violation in ${featureProject.path}. Feature modules must not depend on feature modules directly. Found: $modules"
             }
         }
