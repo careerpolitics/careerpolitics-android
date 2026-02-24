@@ -1,5 +1,3 @@
-import com.android.build.gradle.LibraryExtension
-
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
@@ -13,17 +11,6 @@ plugins {
 }
 
 subprojects {
-    plugins.withId("com.android.library") {
-        extensions.configure<LibraryExtension> {
-            buildTypes {
-                maybeCreate("staging").apply {
-                    initWith(getByName("debug"))
-                    matchingFallbacks += listOf("debug")
-                }
-            }
-        }
-    }
-
     plugins.withId("io.gitlab.arturbosch.detekt") {
         extensions.configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
             buildUponDefaultConfig = true
