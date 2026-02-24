@@ -47,22 +47,13 @@ object AppConfig {
 
     /** Google OAuth web client ID for native Android sign-in */
     val googleWebClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID
-
-    /** Relative callback path that exchanges native Google ID token for web session */
-    val nativeGoogleLoginCallbackPath: String = BuildConfig.NATIVE_GOOGLE_LOGIN_CALLBACK_PATH
     
     // ============================================================================
     // Push Notification Configuration
     // ============================================================================
-    
-    /** Pusher Beams instance ID */
-    val pusherInstanceId: String = BuildConfig.PUSHER_INSTANCE_ID
-    
+
     /** Firebase topic for broadcast notifications */
     val firebaseBroadcastTopic: String = BuildConfig.FIREBASE_TOPIC
-    
-    /** Pusher device interest for broadcast */
-    val pusherDeviceInterest: String = BuildConfig.PUSHER_INTEREST
     
     // ============================================================================
     // WebView Configuration
@@ -119,8 +110,12 @@ object AppConfig {
     
     /** Clear WebView cache on specific routes */
     val clearCacheRoutes: List<String> = listOf(
-        "$baseUrl/enter" // Clear cache when user hits login/enter route
+        "$baseUrl/enter", // Clear cache when user hits login/enter route
+        "$baseUrl/sign_out"
     )
+
+//    Session cookie name used by the Rails backend
+    const val SESSION_COOKIE_NAME= "_Career_Politics_Session"
     
     /** Allowed URL schemes for deep linking */
     val allowedUrlSchemes: List<String> = listOf("https")

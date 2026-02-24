@@ -36,8 +36,8 @@ android {
         applicationId = "com.murari.careerpolitics"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.0.0"
+        versionCode = 7
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
@@ -51,9 +51,7 @@ android {
         buildConfigField("String", "BASE_DOMAIN", "\"careerpolitics.com\"")
         buildConfigField("int", "NETWORK_TIMEOUT_MS", "1500")
         buildConfigField("String", "FIREBASE_TOPIC", "\"all\"")
-        buildConfigField("String", "PUSHER_INTEREST", "\"broadcast\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${getSecret("google.web.client.id", "GOOGLE_WEB_CLIENT_ID", "89605387556-4i6ndjolfd6p6458elkggt712p4a3hic.apps.googleusercontent.com")}\"")
-        buildConfigField("String", "NATIVE_GOOGLE_LOGIN_CALLBACK_PATH", "\"${getSecret("native.google.login.path", "NATIVE_GOOGLE_LOGIN_PATH", "/users/auth/google_oauth2/callback")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${getSecret("google.web.client.id", "GOOGLE_WEB_CLIENT_ID", "861983249506-jsmmvc3f7maodmqt09tpqh9j4vnhceve.apps.googleusercontent.com")}\"")
     }
 
     // Build performance optimizations
@@ -68,10 +66,10 @@ android {
     signingConfigs {
         create("release") {
             // Load from secrets.properties or environment variables (CI/CD)
-            storeFile = file(getSecret("keystore.path", "KEYSTORE_PATH", "release.keystore"))
-            storePassword = getSecret("keystore.password", "KEYSTORE_PASSWORD", "")
-            keyAlias = getSecret("key.alias", "KEY_ALIAS", "")
-            keyPassword = getSecret("key.password", "KEY_PASSWORD", "")
+            storeFile = file("release-keystore.jks")
+            storePassword = "changeit"
+            keyAlias = "release"
+            keyPassword = "changeit"
 
             // Enable V2 signing for better security and faster verification
             enableV1Signing = true
@@ -93,8 +91,7 @@ android {
             isShrinkResources = false
 
             // Debug-specific BuildConfig fields
-            buildConfigField("String", "USER_AGENT", "\"DEV-Native-android-debug\"")
-            buildConfigField("String", "PUSHER_INSTANCE_ID", "\"${getSecret("pusher.instance.id", "PUSHER_INSTANCE_ID", "debug-instance-id")}\"")
+            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 CareerPolitics-debug\"")
             buildConfigField("boolean", "ENABLE_LOGGING", "true")
             buildConfigField("boolean", "ENABLE_WEBVIEW_DEBUG", "true")
             buildConfigField("boolean", "ENABLE_CRASHLYTICS", "false")
@@ -118,8 +115,7 @@ android {
             )
 
             // Staging uses production-like settings but different config
-            buildConfigField("String", "USER_AGENT", "\"STAGING-Native-android\"")
-            buildConfigField("String", "PUSHER_INSTANCE_ID", "\"${getSecret("pusher.instance.id", "PUSHER_INSTANCE_ID", "staging-instance-id")}\"")
+            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 CareerPolitics-staging\"")
             buildConfigField("boolean", "ENABLE_LOGGING", "true")
             buildConfigField("boolean", "ENABLE_WEBVIEW_DEBUG", "true")
             buildConfigField("boolean", "ENABLE_CRASHLYTICS", "true")
@@ -143,8 +139,7 @@ android {
             )
 
             // Production BuildConfig fields
-            buildConfigField("String", "USER_AGENT", "\"PROD-Native-android\"")
-            buildConfigField("String", "PUSHER_INSTANCE_ID", "\"${getSecret("pusher.instance.id", "PUSHER_INSTANCE_ID", "")}\"")
+            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 CareerPolitics\"")
             buildConfigField("boolean", "ENABLE_LOGGING", "false")
             buildConfigField("boolean", "ENABLE_WEBVIEW_DEBUG", "false")
             buildConfigField("boolean", "ENABLE_CRASHLYTICS", "true")
@@ -237,18 +232,19 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
 
     // ExoPlayer
-    implementation(libs.exoplayer.core)
-    implementation(libs.exoplayer.hls)
-    implementation(libs.exoplayer.ui)
-    implementation(libs.extension.mediasession)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.session)
 
     // Firebase Messaging
     implementation(libs.firebase.messaging)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
-    implementation(libs.push.notifications.android)
-    implementation(libs.play.services.auth)
+    implementation(libs.credentials)
+    implementation(libs.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     // Gson
     implementation(libs.gson)

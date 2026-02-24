@@ -14,7 +14,6 @@ import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.network.NetworkStatus
 import com.murari.careerpolitics.util.network.NetworkUtils
 import com.murari.careerpolitics.util.network.NetworkWatcher
-import com.pusher.pushnotifications.PushNotifications
 import kotlinx.coroutines.*
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -61,29 +60,6 @@ open class CustomWebViewClient(
     }
 
     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-        val script = "(function(){const body=document.body; if(!body){return null;} const raw=body.getAttribute(\"data-user\"); if(!raw){return null;} try{return JSON.parse(raw)?.id ?? null;}catch(e){return null;}})();"
-        view?.evaluateJavascript(script) { result ->
-            try {
-                if (result.isNullOrBlank() || result == "null") {
-                    return@evaluateJavascript
-                }
-
-                val userId = result.trim('"').toInt()
-                if (!registeredUserNotifications) {
-                    PushNotifications.addDeviceInterest("user-notifications-$userId")
-                    registeredUserNotifications = true
-                    Logger.d(LOG_TAG, "Registered device for user-$userId notifications")
-                }
-
-                if(!registeredFcmToken){
-                    Logger.d(LOG_TAG, "User authenticated detected ( user_id: $userId), registering FCM token")
-                    PushNotificationService.registerFcmToken(context)
-                    registeredFcmToken = true
-                }
-            } catch (e: Exception) {
-                Logger.d(LOG_TAG, "Could not parse user ID from body data-user attribute")
-            }
-        }
         super.doUpdateVisitedHistory(view, url, isReload)
     }
 
@@ -95,7 +71,7 @@ open class CustomWebViewClient(
 
         // 2. Check for the session cookie to quickly determine if the user might be logged in.
         val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl).orEmpty()
-        val hasSessionCookie = cookies.isNotBlank() && cookies.contains("_careerpolitics_session")
+        val hasSessionCookie = cookies.isNotBlank() && cookies.contains(AppConfig.SESSION_COOKIE_NAME)
 
         if (!hasSessionCookie) {
             return
@@ -188,13 +164,15 @@ open class CustomWebViewClient(
 
 
     fun sendBridgeMessage(type: String, message: Map<String, Any>) {
-        val json = JSONObject(message).toString()
-        val script = when (type) {
-            "podcast" -> "document.getElementById('audiocontent')?.setAttribute('data-podcast', '$json')"
-            "video" -> "document.getElementById('video-player-source')?.setAttribute('data-message', '$json')"
-            else -> return
-        }
+        val payload = JSONObject(message).apply { put("namespace", type) }
+        val escaped = payload.toString().replace("\\", "\\\\").replace("'", "\\'")
+        val script = "(function(){var e=new CustomEvent('ForemMobile',{detail:'$escaped'});document.dispatchEvent(e);})();"
         view.post { view.evaluateJavascript(script, null) }
+    }
+
+    fun resetRegistrationFlags() {
+        registeredFcmToken = false
+        registeredUserNotifications = false
     }
 
     override fun onReceivedError(

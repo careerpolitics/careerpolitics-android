@@ -1,21 +1,10 @@
 package com.murari.careerpolitics.util.network
 
 import android.content.Context
-import android.graphics.Color
-import android.net.Uri
-import android.os.Build
 import android.util.Log
-import android.view.View
 import android.webkit.*
-import androidx.browser.customtabs.CustomTabsIntent
-import com.murari.careerpolitics.events.NetworkStatusEvent
 import com.murari.careerpolitics.webclients.CustomWebViewClient
-import com.pusher.pushnotifications.PushNotifications
 import kotlinx.coroutines.*
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
-import org.json.JSONObject
 
 class OfflineWebViewClient(
     private val context: Context,

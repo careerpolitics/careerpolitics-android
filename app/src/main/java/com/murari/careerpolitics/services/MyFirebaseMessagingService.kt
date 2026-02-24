@@ -41,8 +41,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "FCM token refreshed: $token")
+        Log.d(TAG, "FCM token refreshed")
 
+        // Persist pending token so it gets registered on next login.
+        PushNotificationService.savePendingToken(applicationContext, token)
+        // Attempt registration now (will no-op if user isn't authenticated)
         PushNotificationService.registerFcmToken(applicationContext)
     }
 
