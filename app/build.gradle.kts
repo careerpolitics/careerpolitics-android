@@ -6,8 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
-    alias(libs.plugins.hilt.android)
-    alias(libs.plugins.detekt)
     id("kotlin-kapt")
 }
 
@@ -180,7 +178,6 @@ android {
     lint {
         // Fail build on critical security issues
         abortOnError = true
-        lintConfig = file("../config/lint/lint.xml")
         checkReleaseBuilds = true
 
         // Check for security vulnerabilities
@@ -214,7 +211,6 @@ android {
 }
 
 kapt {
-    correctErrorTypes = true
     arguments {
         arg("eventBusIndex", "com.murari.careerpolitics.MyEventBusIndex")
     }
@@ -268,17 +264,6 @@ dependencies {
     //splash
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.material)
-
-    // DI
-    implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
-
-    // Modular foundation
-    implementation(project(":core:common"))
-    implementation(project(":feature:shell"))
-    implementation(project(":feature:deeplink"))
-    implementation(project(":feature:auth"))
-    implementation(project(":feature:notifications"))
 
     // Testing
     testImplementation(libs.junit)

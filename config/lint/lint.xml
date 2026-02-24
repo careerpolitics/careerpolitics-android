@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<lint>
-    <issue id="StopShip" severity="error" />
-    <issue id="UnusedResources" severity="warning" />
-    <issue id="Interoperability" severity="warning" />
-    <issue id="InvalidPackage" severity="error" />
-</lint>
