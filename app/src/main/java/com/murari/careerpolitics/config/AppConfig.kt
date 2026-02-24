@@ -44,6 +44,12 @@ object AppConfig {
     
     /** WebView user agent string */
     val userAgent: String = BuildConfig.USER_AGENT
+
+    /** Google OAuth web client ID for native Android sign-in */
+    val googleWebClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID
+
+    /** Relative callback path that exchanges native Google ID token for web session */
+    val nativeGoogleLoginCallbackPath: String = BuildConfig.NATIVE_GOOGLE_LOGIN_CALLBACK_PATH
     
     // ============================================================================
     // Push Notification Configuration

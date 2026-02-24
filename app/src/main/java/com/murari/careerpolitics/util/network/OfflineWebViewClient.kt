@@ -21,8 +21,9 @@ class OfflineWebViewClient(
     private val context: Context,
     private val view: WebView,
     private val coroutineScope: CoroutineScope,
-    private val onPageFinish: () -> Unit
-) : CustomWebViewClient(context, view, coroutineScope, onPageFinish) {
+    private val onPageFinish: () -> Unit,
+    private val onGoogleNativeSignInRequested: (() -> Boolean)? = null
+) : CustomWebViewClient(context, view, coroutineScope, onPageFinish, onGoogleNativeSignInRequested) {
 
     override fun onPageFinished(view: WebView, url: String?) {
         super.onPageFinished(view, url)

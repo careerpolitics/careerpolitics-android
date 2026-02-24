@@ -52,6 +52,8 @@ android {
         buildConfigField("int", "NETWORK_TIMEOUT_MS", "1500")
         buildConfigField("String", "FIREBASE_TOPIC", "\"all\"")
         buildConfigField("String", "PUSHER_INTEREST", "\"broadcast\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${getSecret("google.web.client.id", "GOOGLE_WEB_CLIENT_ID", "")}\"")
+        buildConfigField("String", "NATIVE_GOOGLE_LOGIN_CALLBACK_PATH", "\"${getSecret("native.google.login.path", "NATIVE_GOOGLE_LOGIN_PATH", "/auth/google_oauth2/native_callback")}\"")
     }
 
     // Build performance optimizations
@@ -246,7 +248,7 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
     implementation(libs.push.notifications.android)
-
+    implementation(libs.play.services.auth)
 
     // Gson
     implementation(libs.gson)

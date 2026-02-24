@@ -8,6 +8,7 @@ import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.*
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.net.toUri
 import com.murari.careerpolitics.events.NetworkStatusEvent
 import com.murari.careerpolitics.services.PushNotificationService
 import com.murari.careerpolitics.util.network.NetworkStatus
@@ -24,7 +25,8 @@ open class CustomWebViewClient(
     private val context: Context,
     private val view: WebView,
     private val coroutineScope: CoroutineScope,
-    private val onPageFinish: () -> Unit
+    private val onPageFinish: () -> Unit,
+    private val onGoogleNativeSignInRequested: (() -> Boolean)? = null
 ) : WebViewClient() {
 
     companion object {
@@ -136,7 +138,14 @@ open class CustomWebViewClient(
             }
         }
 
-        if (shouldOpenInCustomTab(host, url)) {
+        if (shouldStartNativeGoogleSignIn(host, url)) {
+            val handledByNativeFlow = onGoogleNativeSignInRequested?.invoke() == true
+            if (handledByNativeFlow) {
+                Logger.d(LOG_TAG, "Starting native Google sign-in flow")
+                return true
+            }
+
+            Logger.w(LOG_TAG, "Native Google sign-in unavailable, falling back to Custom Tab")
             launchCustomTab(url)
             return true
         }
@@ -148,7 +157,7 @@ open class CustomWebViewClient(
         return true
     }
 
-    private fun shouldOpenInCustomTab(host: String, url: String): Boolean {
+    private fun shouldStartNativeGoogleSignIn(host: String, url: String): Boolean {
         if (host in googleAuthHosts) return true
 
         if (host.endsWith(AppConfig.baseDomain)) {
