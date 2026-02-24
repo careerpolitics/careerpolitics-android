@@ -31,7 +31,6 @@ class MainWebViewConfigurator(
             allowContentAccess = true
             databaseEnabled = true
             cacheMode = WebSettings.LOAD_DEFAULT
-            setRenderPriority(WebSettings.RenderPriority.HIGH)
         }
 
         webView.addJavascriptInterface(bridge, JS_BRIDGE_NAME)
