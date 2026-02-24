@@ -91,7 +91,12 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run detekt + android lint
-        run: ./gradlew detekt lintDebug
+        run: ./gradlew help projects detekt :app:lintRelease
+
+      - name: Optional detekt strict mode
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: ./gradlew detekt --all-rules
 
       - name: Upload lint reports
         if: always()
