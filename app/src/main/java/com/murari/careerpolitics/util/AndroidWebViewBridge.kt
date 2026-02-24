@@ -1,20 +1,26 @@
 package com.murari.careerpolitics.util
 
 import android.content.*
-import android.os.IBinder
 import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.util.Logger
 import android.webkit.JavascriptInterface
 import android.widget.Toast
-import com.google.gson.Gson
-import com.murari.careerpolitics.activities.VideoPlayerActivity
-import com.murari.careerpolitics.events.VideoPlayerPauseEvent
-import com.murari.careerpolitics.events.VideoPlayerTickEvent
-import com.murari.careerpolitics.media.AudioService
+import com.murari.careerpolitics.core.webview.bridge.BridgeCommandParser
+import com.murari.careerpolitics.core.webview.bridge.PodcastBridgeCommand
+import com.murari.careerpolitics.core.webview.bridge.VideoBridgeCommand
+import com.murari.careerpolitics.feature.media.channel.MediaBridgeChannel
+import com.murari.careerpolitics.feature.media.channel.MediaBridgeEvent
+import com.murari.careerpolitics.feature.media.domain.AudioServiceController
+import com.murari.careerpolitics.feature.media.domain.VideoPlaybackController
+import com.murari.careerpolitics.media.controllers.AndroidAudioServiceController
+import com.murari.careerpolitics.media.controllers.AndroidVideoPlaybackController
 import com.murari.careerpolitics.webclients.CustomWebViewClient
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import java.util.*
 
 class AndroidWebViewBridge(private val context: Context) {
@@ -22,22 +28,33 @@ class AndroidWebViewBridge(private val context: Context) {
     var webViewClient: CustomWebViewClient? = null
 
     private var timer: Timer? = null
-    private var audioService: AudioService? = null
+    private val commandParser = BridgeCommandParser()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val gson = Gson()
-
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            audioService = (service as? AudioService.AudioServiceBinder)?.service
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            audioService = null
-        }
-    }
+    private val audioController: AudioServiceController = AndroidAudioServiceController(context)
+    private val videoController: VideoPlaybackController = AndroidVideoPlaybackController(context)
 
     companion object {
         private const val LOG_TAG = "AndroidWebViewBridge"
+    }
+
+    init {
+        scope.launch {
+            MediaBridgeChannel.events.collectLatest { event ->
+                when (event) {
+                    is MediaBridgeEvent.VideoTick -> {
+                        webViewClient?.sendBridgeMessage(
+                            "video",
+                            mapOf("action" to "tick", "currentTime" to event.seconds)
+                        )
+                    }
+
+                    MediaBridgeEvent.VideoPaused -> {
+                        webViewClient?.sendBridgeMessage("video", mapOf("action" to "pause"))
+                    }
+                }
+            }
+        }
     }
 
     // Logging from JavaScript
@@ -72,66 +89,45 @@ class AndroidWebViewBridge(private val context: Context) {
     // Podcast control from WebView
     @JavascriptInterface
     fun podcastMessage(message: String) {
-        val map = try {
-            gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
-        } catch (e: Exception) {
-            Logger.e(LOG_TAG, "Podcast JSON parse error", e)
-            return
-        }
-
-        when (map["action"]) {
-            "load"      -> loadPodcast(map["url"])
-            "play"      -> audioService?.play(map["url"], map["seconds"])
-            "pause"     -> audioService?.pause()
-            "seek"      -> audioService?.seekTo(map["seconds"])
-            "rate"      -> audioService?.rate(map["rate"])
-            "muted"     -> audioService?.mute(map["muted"])
-            "volume"    -> audioService?.volume(map["volume"])
-            "metadata"  -> audioService?.loadMetadata(
-                map["episodeName"], map["podcastName"], map["imageUrl"]
+        when (val command = commandParser.parsePodcast(message)) {
+            is PodcastBridgeCommand.Load -> loadPodcast(command.url)
+            is PodcastBridgeCommand.Play -> audioController.play(command.url, command.seconds)
+            PodcastBridgeCommand.Pause -> audioController.pause()
+            is PodcastBridgeCommand.Seek -> audioController.seekTo(command.seconds)
+            is PodcastBridgeCommand.Rate -> audioController.rate(command.rate)
+            is PodcastBridgeCommand.Muted -> audioController.mute(command.muted)
+            is PodcastBridgeCommand.Volume -> audioController.volume(command.volume)
+            is PodcastBridgeCommand.Metadata -> audioController.loadMetadata(
+                command.episodeName,
+                command.podcastName,
+                command.imageUrl
             )
-            "terminate" -> terminatePodcast()
-            else        -> Logger.w(LOG_TAG, "Unknown podcast action: ${map["action"]}")
+            PodcastBridgeCommand.Terminate -> terminatePodcast()
+            is PodcastBridgeCommand.Unknown -> Logger.w(LOG_TAG, "Unknown podcast action: ${command.action}")
         }
     }
 
     // Video playback control from WebView
     @JavascriptInterface
     fun videoMessage(message: String) {
-        val map = try {
-            gson.fromJson(message, Map::class.java) as? Map<String, String> ?: emptyMap()
-        } catch (e: Exception) {
-            Logger.e(LOG_TAG, "Video JSON parse error", e)
-            return
-        }
-
-        when (map["action"]) {
-            "play" -> playVideo(map["url"], map["seconds"])
-            else   -> Logger.w(LOG_TAG, "Unknown video action: ${map["action"]}")
+        when (val command = commandParser.parseVideo(message)) {
+            is VideoBridgeCommand.Play -> playVideo(command.url, command.seconds)
+            is VideoBridgeCommand.Unknown -> Logger.w(LOG_TAG, "Unknown video action: ${command.action}")
         }
     }
 
     private fun playVideo(url: String?, seconds: String?) {
         if (url.isNullOrEmpty()) return
 
-        audioService?.pause()
+        audioController.pause()
         timer?.cancel()
-
-        // Launch video player activity
-        context.startActivity(VideoPlayerActivity.newIntent(context, url, seconds ?: "0"))
-
-        if (!EventBus.getDefault().isRegistered(this)) {
-            EventBus.getDefault().register(this)
-        }
+        videoController.play(url, seconds ?: "0")
     }
 
     private fun loadPodcast(url: String?) {
         if (url.isNullOrEmpty()) return
 
-        // Start audio service
-        AudioService.newIntent(context, url).also { intent ->
-            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-        }
+        audioController.load(url)
 
         // Start timer to send playback ticks to WebView
         timer?.cancel()
@@ -147,43 +143,26 @@ class AndroidWebViewBridge(private val context: Context) {
         timer?.cancel()
         timer = null
 
-        audioService?.pause()
-        try {
-            context.unbindService(connection)
-        } catch (_: IllegalArgumentException) { /* already unbound */ }
+        audioController.terminate()
+    }
 
-        context.stopService(Intent(context, AudioService::class.java))
-        audioService = null
+    fun release() {
+        terminatePodcast()
+        scope.cancel()
     }
 
     private fun podcastTimeUpdate() {
-        audioService?.let { service ->
-            val time = service.currentTimeInSec() / 1000
-            val duration = service.durationInSec() / 1000
+        val time = audioController.currentTimeMs() / 1000
+        val duration = audioController.durationMs() / 1000
 
-            if (duration < 0) {
+        if (duration < 0) {
                 webViewClient?.sendBridgeMessage("podcast", mapOf("action" to "init"))
-            } else {
-                webViewClient?.sendBridgeMessage("podcast", mapOf(
-                    "action" to "tick",
-                    "duration" to duration,
-                    "currentTime" to time
-                ))
-            }
+        } else {
+            webViewClient?.sendBridgeMessage("podcast", mapOf(
+                "action" to "tick",
+                "duration" to duration,
+                "currentTime" to time
+            ))
         }
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onVideoPauseEvent(event: VideoPlayerPauseEvent) {
-        webViewClient?.sendBridgeMessage("video", mapOf("action" to event.action))
-        EventBus.getDefault().unregister(this)
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onVideoTickEvent(event: VideoPlayerTickEvent) {
-        webViewClient?.sendBridgeMessage("video", mapOf(
-            "action" to event.action,
-            "currentTime" to event.seconds
-        ))
     }
 }
