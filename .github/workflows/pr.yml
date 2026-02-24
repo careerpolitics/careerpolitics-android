@@ -1,0 +1,119 @@
+name: PR Validation
+
+on:
+  # Validate pull requests targeting main.
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+# Read-only permissions for fork safety and least privilege.
+permissions: read-all
+
+# Keep one run per PR branch; cancel stale runs on new commits.
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+  validate:
+    name: Lint, tests, and debug smoke build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle caching
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure gradlew executable
+        run: chmod +x ./gradlew
+
+      # PR workflow is safe for forks: do NOT use secrets.
+      # Create a local placeholder firebase config so debug packaging can run.
+      - name: Create placeholder google-services.json
+        run: |
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "careerpolitics-pr",
+              "storage_bucket": "careerpolitics-pr.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:debugplaceholder",
+                  "android_client_info": {
+                    "package_name": "com.murari.careerpolitics"
+                  }
+                },
+                "api_key": [
+                  {
+                    "current_key": "debug-placeholder-key"
+                  }
+                ]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      # Fail-fast sanity checks.
+      - name: Clean
+        run: ./gradlew clean --stacktrace
+
+      - name: Lint
+        run: ./gradlew lint --stacktrace
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Smoke build debug APK and AAB
+        run: ./gradlew assembleDebug bundleDebug --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-lint-report
+          path: app/build/reports/lint-results*.html
+          if-no-files-found: warn
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: warn
+
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-debug-builds
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/bundle/debug/app-debug.aab
+          if-no-files-found: warn
+
+      - name: Cleanup generated files
+        if: always()
+        run: rm -f app/google-services.json
