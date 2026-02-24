@@ -11,8 +11,6 @@ import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.util.Logger
 import android.view.View
 import android.webkit.ValueCallback
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.graphics.Color
 import androidx.activity.addCallback
 import androidx.activity.result.ActivityResultLauncher
@@ -30,15 +28,14 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
-import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
-import com.murari.careerpolitics.services.PushNotificationService
+import com.murari.careerpolitics.activities.main.MainIntentRouter
+import com.murari.careerpolitics.activities.main.MainWebViewConfigurator
+import com.murari.careerpolitics.activities.main.PushNotificationInitializer
 import com.murari.careerpolitics.util.AndroidWebViewBridge
-import com.murari.careerpolitics.webclients.CustomWebChromeClient
-import com.murari.careerpolitics.webclients.CustomWebViewClient
 import com.murari.careerpolitics.util.network.OfflineWebViewClient
-import com.pusher.pushnotifications.PushNotifications
+import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -47,6 +44,8 @@ import kotlinx.coroutines.launch
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
     private lateinit var webViewClient: OfflineWebViewClient
+    private lateinit var intentRouter: MainIntentRouter
+    private lateinit var pushNotificationInitializer: PushNotificationInitializer
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val mainActivityScope = MainScope()
@@ -60,7 +59,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) initializePushNotifications()
+            if (isGranted) pushNotificationInitializer.initialize()
         }
 
     override fun layout(): Int = R.layout.activity_main
@@ -76,6 +75,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         window.navigationBarColor = Color.TRANSPARENT
 
         super.onCreate(savedInstanceState)
+        intentRouter = MainIntentRouter { binding?.webView }
+        pushNotificationInitializer = PushNotificationInitializer(applicationContext)
         requestNotificationPermissionIfNeeded()
         binding?.let {
             setContentView(it.root)
@@ -92,10 +93,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             if (savedInstanceState != null) {
                 restoreState(savedInstanceState)
-            } else if (!handleAppLinkIntent(intent)) {
+            } else if (!intentRouter.handleAppLinkIntent(intent)) {
                 navigateToHome()
             }
-            handleNotificationIntent(intent)
+            intentRouter.handleNotificationIntent(intent)
             initGalleryLauncher()
 
             mainActivityScope.launch {
@@ -139,7 +140,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun initGoogleSignIn() {
-        val clientId = AppConfig.googleWebClientId
+        val clientId = AppConfig.authConfig.googleWebClientId
         if (clientId.isBlank()) {
             Logger.w(LOG_TAG, "Google web client ID not configured. Native Google login disabled.")
             return
@@ -198,7 +199,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     }
 
     private fun completeNativeGoogleLogin(authCode: String?, idToken: String?) {
-        val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
+        val callbackPath = AppConfig.authConfig.nativeGoogleLoginCallbackPath
             .trim()
             .let { if (it.startsWith("/")) it else "/$it" }
 
@@ -227,7 +228,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             val permission = Manifest.permission.POST_NOTIFICATIONS
             when {
                 ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED ->
-                    initializePushNotifications()
+                    pushNotificationInitializer.initialize()
 
                 shouldShowRequestPermissionRationale(permission) ->
                     requestNotificationPermissionLauncher.launch(permission)
@@ -235,39 +236,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 else -> requestNotificationPermissionLauncher.launch(permission)
             }
         } else {
-            initializePushNotifications()
-        }
-    }
-
-    private fun initializePushNotifications() {
-        try {
-            // Subscribe to Firebase topic using config
-            FirebaseMessaging.getInstance().subscribeToTopic(AppConfig.firebaseBroadcastTopic)
-
-            // Initialize Pusher with config-driven instance ID
-            PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
-            PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
-
-            Logger.d(LOG_TAG, "Push Notifications initialized(awaiting user auth for token registration)")
-        } catch (e: Exception) {
-            Logger.e(LOG_TAG, "Error initializing push notifications", e)
-
-            // Fallback: try to initialize without Firebase if it fails
-            try {
-                PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
-                PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
-
-                Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
-            } catch (fallbackException: Exception) {
-                Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)
-            }
+            pushNotificationInitializer.initialize()
         }
     }
 
     override fun onResume() {
         super.onResume()
         binding?.webView?.let { webView ->
-            handleNotificationIntent(intent)
+            intentRouter.handleNotificationIntent(intent)
             webViewClient.observeNetwork()
         }
     }
@@ -302,146 +278,22 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
         super.onNewIntent(intent)
         setIntent(intent)
 
-        if (!handleAppLinkIntent(intent)) {
-            handleNotificationIntent(intent)
+        if (!intentRouter.handleAppLinkIntent(intent)) {
+            intentRouter.handleNotificationIntent(intent)
         }
     }
-
-
-    private fun handleAppLinkIntent(intent: Intent?): Boolean {
-        val deepLinkUrl = intent?.dataString ?: return false
-
-        if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
-            Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
-            return false
-        }
-
-        Logger.d(LOG_TAG, "Opening app link in WebView: $deepLinkUrl")
-        binding?.webView?.loadUrl(deepLinkUrl)
-        return true
-    }
-
-    private fun handleNotificationIntent(intent: Intent?) {
-        if (intent == null) return
-
-        try {
-            val url = intent.getStringExtra("url")
-            val notificationType = intent.getStringExtra("notification_type")
-
-            val actionType = intent.getStringExtra("action")
-
-            if (url.isNullOrBlank()) {
-                Logger.d(LOG_TAG, "Notification intent received without URL, ignoring")
-                return
-            }
-
-            binding?.webView?.loadUrl(url)
-
-            Logger.d(
-                LOG_TAG,
-                "Notification clicked: type=$notificationType, action=$actionType, url=$url"
-            )
-
-            intent.removeExtra("url")
-            intent.removeExtra("notification_type")
-
-        } catch (e: Exception) {
-            Logger.e(LOG_TAG, "Failed to handle notification intent", e)
-        }
-    }
-
 
     private fun setWebViewSettings() {
         binding?.webView?.let { webView ->
-            // Enable remote debugging only in debug/staging builds
-            WebView.setWebContentsDebuggingEnabled(AppConfig.enableWebViewDebugging)
-
-            with(webView.settings) {
-                javaScriptEnabled = AppConfig.enableJavaScript
-                domStorageEnabled = AppConfig.enableDomStorage
-                userAgentString = AppConfig.userAgent
-
-                // Additional security settings
-                allowFileAccess = false // Prevent file:// URL access
-                allowContentAccess = true // Allow content:// URLs for image picking
-                databaseEnabled = true // Required for DOM storage
-
-                // Performance settings
-                cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
-                setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
-            }
-
-            webView.addJavascriptInterface(webViewBridge, "Android")
-
-            webViewClient = OfflineWebViewClient(
-                this,
-                webView,
-                mainActivityScope,
-                onPageFinish = { webView.visibility = View.VISIBLE },
-                onGoogleNativeSignInRequested = { authUrl -> launchNativeGoogleSignIn(authUrl) }
+            val configurator = MainWebViewConfigurator(
+                activity = this,
+                scope = mainActivityScope,
+                bridge = webViewBridge,
+                onNativeGoogleSignInRequested = { authUrl -> launchNativeGoogleSignIn(authUrl) },
+                onPageFinished = { webView.visibility = View.VISIBLE }
             )
-
-            webView.webViewClient = webViewClient as WebViewClient
-            webView.webChromeClient = CustomWebChromeClient(AppConfig.baseUrl, this)
-            webViewBridge.webViewClient = webViewClient as CustomWebViewClient
-
-            // Left-edge swipe gesture to open web sidebar, without affecting vertical pull-to-refresh
-            setupLeftEdgeSwipeForSidebar(webView)
+            webViewClient = configurator.configure(webView)
         }
-    }
-
-    private fun setupLeftEdgeSwipeForSidebar(webView: WebView) {
-        val edgeWidthPx = (AppConfig.EDGE_SWIPE_WIDTH_DP * webView.resources.displayMetrics.density).toInt()
-        val triggerDxPx = (AppConfig.EDGE_SWIPE_TRIGGER_DP * webView.resources.displayMetrics.density).toInt()
-        var downX = 0f
-        var downY = 0f
-        var eligible = false
-        var triggered = false
-
-        webView.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    downX = event.x
-                    downY = event.y
-                    eligible = downX <= edgeWidthPx
-                    triggered = false
-                    false // do not consume; allow WebView to handle
-                }
-                android.view.MotionEvent.ACTION_MOVE -> {
-                    if (eligible && !triggered) {
-                        val dx = event.x - downX
-                        val dy = event.y - downY
-                        if (dx > triggerDxPx && kotlin.math.abs(dx) > 2 * kotlin.math.abs(dy)) {
-                            triggered = true
-                            openWebSidebar(webView)
-                            // Do not consume to keep vertical gestures intact
-                            false
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                }
-                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                    eligible = false
-                    triggered = false
-                    false
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun openWebSidebar(webView: WebView) {
-        val js = """
-            (function(){
-                function q(){return document.querySelector('button.js-hamburger-trigger,[data-sidebar-toggle],button[aria-label*="menu" i],button[aria-label*="navigation" i],.hamburger,.menu,.drawer-toggle,.navbar-toggle,[data-testid="menu-button"],[data-action="open-sidebar"]');}
-                function simulate(el){try{el.focus();}catch(e){} var o={bubbles:true,cancelable:true}; try{el.dispatchEvent(new PointerEvent('pointerdown',o));}catch(e){} try{el.dispatchEvent(new MouseEvent('mousedown',o));}catch(e){} try{el.dispatchEvent(new TouchEvent('touchstart',o));}catch(e){} try{el.dispatchEvent(new MouseEvent('click',o));}catch(e){} try{el.dispatchEvent(new MouseEvent('mouseup',o));}catch(e){} try{el.dispatchEvent(new PointerEvent('pointerup',o));}catch(e){} }
-                var el=q(); if(el){simulate(el); return true;} return false;
-            })()
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
     }
 
     private fun restoreState(savedInstanceState: Bundle) {
