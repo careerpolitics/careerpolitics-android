@@ -280,7 +280,6 @@ dependencies {
     implementation(project(":feature:auth"))
     implementation(project(":feature:notifications"))
     implementation(project(":data:auth"))
-    implementation(project(":data:notifications"))
 
     // Testing
     testImplementation(libs.junit)
