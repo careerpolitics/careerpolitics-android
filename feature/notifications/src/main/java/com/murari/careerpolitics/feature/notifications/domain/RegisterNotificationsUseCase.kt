@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package com.murari.careerpolitics.feature.notifications.domain
 
 import javax.inject.Inject
@@ -19,7 +17,7 @@ class RegisterNotificationsUseCase @Inject constructor(
             try {
                 repository.register(topic, instanceId, interest)
                 return Result.success(Unit)
-            } catch (exception: Exception) {
+            } catch (exception: RuntimeException) {
                 lastError = exception
             }
         }

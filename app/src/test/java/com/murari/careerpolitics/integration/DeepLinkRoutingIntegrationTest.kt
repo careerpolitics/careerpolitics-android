@@ -18,6 +18,6 @@ class DeepLinkRoutingIntegrationTest {
             override fun isValidAppDeepLink(url: String): Boolean = false
         }
         val vm = DeepLinkViewModel(ResolveDeepLinkUseCase(ParseDeepLinkUseCase(repo), ValidateDeepLinkUseCase(repo)))
-        assertTrue(vm.resolve(Intent()) is ResolvedDeepLink.Invalid)
+        assertTrue(vm.resolve(null) is ResolvedDeepLink.Invalid)
     }
 }

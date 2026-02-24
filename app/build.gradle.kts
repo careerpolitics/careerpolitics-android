@@ -192,6 +192,9 @@ android {
             "ExportedService"
         )
 
+        // Ignore known third-party bytecode references that are not invoked at runtime
+        disable += listOf("InvalidPackage")
+
         // Don't fail on warnings in debug builds
         warningsAsErrors = false
     }
