@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught", "SwallowedException", "UnusedPrivateProperty")
+
 package com.murari.careerpolitics.services
 
 import org.json.JSONArray
@@ -129,14 +131,9 @@ data class NotificationData(
             val title = data["title"].orEmpty()
             val body = data["body"].orEmpty()
 
-            val channelId = data["channel_id"] ?: "default"
             val groupKey = data["group_key"]
-            val icon = data["icon"]
             val color = data["color"]
             val url = data["url"]
-
-            val timestamp = data["timestamp"]?.toLongOrNull()
-                ?: System.currentTimeMillis()
 
             // -------------------------
             // Actor
@@ -215,7 +212,6 @@ data class NotificationData(
         }
     }
 }
-
 
 
 

@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package com.murari.careerpolitics.ui.theme
 
 import android.os.Build

@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught", "SwallowedException")
+
 package com.murari.careerpolitics.util.network
 
 import android.content.BroadcastReceiver

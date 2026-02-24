@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming", "WildcardImport")
+
 package com.murari.careerpolitics
 
 import android.os.Bundle

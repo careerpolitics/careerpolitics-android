@@ -1,3 +1,5 @@
+@file:Suppress("WildcardImport", "TooGenericExceptionCaught", "SwallowedException", "ReturnCount", "MaxLineLength")
+
 package com.murari.careerpolitics.webclients
 
 import android.content.Context

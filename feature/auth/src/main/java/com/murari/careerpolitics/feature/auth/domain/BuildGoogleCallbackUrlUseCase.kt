@@ -1,7 +1,8 @@
 package com.murari.careerpolitics.feature.auth.domain
 
-import android.net.Uri
 import javax.inject.Inject
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 class BuildGoogleCallbackUrlUseCase @Inject constructor() {
 
@@ -15,16 +16,19 @@ class BuildGoogleCallbackUrlUseCase @Inject constructor() {
         val normalizedPath = callbackPath.trim().let {
             if (it.startsWith("/")) it else "/$it"
         }
+        val normalizedBaseUrl = baseUrl.trimEnd('/')
+        val params = linkedMapOf<String, String>()
+        if (!authCode.isNullOrBlank()) params["code"] = authCode
+        if (!idToken.isNullOrBlank()) params["id_token"] = idToken
+        if (!state.isNullOrBlank()) params["state"] = state
+        params["platform"] = "android"
 
-        return Uri.parse(baseUrl).buildUpon()
-            .encodedPath(normalizedPath)
-            .apply {
-                if (!authCode.isNullOrBlank()) appendQueryParameter("code", authCode)
-                if (!idToken.isNullOrBlank()) appendQueryParameter("id_token", idToken)
-                if (!state.isNullOrBlank()) appendQueryParameter("state", state)
-                appendQueryParameter("platform", "android")
-            }
-            .build()
-            .toString()
+        val queryString = params.entries.joinToString("&") { (key, value) ->
+            "${encode(key)}=${encode(value)}"
+        }
+
+        return "$normalizedBaseUrl$normalizedPath?$queryString"
     }
+
+    private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString())
 }

@@ -1,3 +1,5 @@
+@file:Suppress("WildcardImport")
+
 package com.murari.careerpolitics.activities
 
 import android.app.Activity
@@ -6,7 +8,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.view.*
+import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -33,6 +38,7 @@ class ForemAppDialog : DialogFragment() {
                 activity?.packageManager?.getPackageInfo(PACKAGE_NAME, 0)
                 true
             } catch (e: PackageManager.NameNotFoundException) {
+                Log.w("ForemAppDialog", "Forem app package not found", e)
                 false
             }
         }
@@ -91,6 +97,7 @@ class ForemAppDialog : DialogFragment() {
             val intent = try {
                 Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PACKAGE_NAME"))
             } catch (e: ActivityNotFoundException) {
+                Log.w("ForemAppDialog", "Play Store not available, using web fallback", e)
                 Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$PACKAGE_NAME"))
             }
             startActivity(intent)

@@ -20,24 +20,20 @@ class ShellViewModel @Inject constructor() : ViewModel() {
         notificationUrl: String?,
         homeUrl: String
     ) {
-        if (savedInstanceStateExists) return
+        val startupCommand = when {
+            savedInstanceStateExists -> null
+            !deepLinkUrl.isNullOrBlank() -> {
+                ShellNavigationCommand.LoadUrl(deepLinkUrl, ShellRouteSource.STARTUP_DEEP_LINK)
+            }
 
-        if (!deepLinkUrl.isNullOrBlank()) {
-            publishCommand(ShellNavigationCommand.LoadUrl(deepLinkUrl, ShellRouteSource.STARTUP_DEEP_LINK))
-            return
+            !notificationUrl.isNullOrBlank() -> {
+                ShellNavigationCommand.LoadUrl(notificationUrl, ShellRouteSource.STARTUP_NOTIFICATION)
+            }
+
+            else -> ShellNavigationCommand.LoadUrl(homeUrl, ShellRouteSource.STARTUP_HOME)
         }
 
-        if (!notificationUrl.isNullOrBlank()) {
-            publishCommand(
-                ShellNavigationCommand.LoadUrl(
-                    notificationUrl,
-                    ShellRouteSource.STARTUP_NOTIFICATION
-                )
-            )
-            return
-        }
-
-        publishCommand(ShellNavigationCommand.LoadUrl(homeUrl, ShellRouteSource.STARTUP_HOME))
+        startupCommand?.let(::publishCommand)
     }
 
     fun resolveIncomingIntent(deepLinkUrl: String?, notificationUrl: String?) {

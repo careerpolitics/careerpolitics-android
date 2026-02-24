@@ -34,7 +34,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         try {
             val data = parseNotificationData(message)
             showRichNotification(data)
-        } catch (ex: Exception) {
+        } catch (ex: IllegalArgumentException) {
             Log.e(TAG, "Failed to process notification", ex)
         }
     }
@@ -50,16 +50,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
      * Parse RemoteMessage into NotificationData
      */
     private fun parseNotificationData(message: RemoteMessage): NotificationData {
-        if (message.data.isEmpty()) {
-            throw IllegalArgumentException("FCM message data payload is empty")
-        }
+        require(message.data.isNotEmpty()) { "FCM message data payload is empty" }
 
         val data = NotificationData.fromDataPayload(message.data)
             ?: throw IllegalArgumentException("Failed to parse NotificationData")
 
-        if (data.body.isBlank()) {
-            throw IllegalArgumentException("Notification body is empty")
-        }
+        require(data.body.isNotBlank()) { "Notification body is empty" }
 
         return data
     }

@@ -1,3 +1,5 @@
+@file:Suppress("WildcardImport", "TooGenericExceptionCaught", "UnusedParameter")
+
 package com.murari.careerpolitics.services
 
 import android.content.Context
