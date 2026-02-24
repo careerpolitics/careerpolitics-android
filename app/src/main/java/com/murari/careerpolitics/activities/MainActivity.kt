@@ -203,7 +203,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     override fun onDestroy() {
         super.onDestroy()
-        webViewBridge.release()
+        webViewBridge.terminatePodcast()
         mainActivityScope.cancel()
         
         // Clear WebView to prevent memory leaks

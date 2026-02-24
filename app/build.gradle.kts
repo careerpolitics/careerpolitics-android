@@ -280,7 +280,6 @@ dependencies {
     implementation(project(":feature:deeplink"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:notifications"))
-    implementation(project(":feature:media"))
     implementation(project(":data:auth"))
     implementation(project(":data:notifications"))
 
