@@ -1,3 +1,5 @@
+@file:Suppress("WildcardImport")
+
 package com.murari.careerpolitics.media
 
 import android.annotation.SuppressLint

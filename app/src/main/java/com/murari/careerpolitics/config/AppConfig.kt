@@ -72,10 +72,10 @@ object AppConfig {
     val enableWebViewDebugging: Boolean = BuildConfig.ENABLE_WEBVIEW_DEBUG
     
     /** Enable JavaScript in WebView */
-    val enableJavaScript: Boolean = true // Always true for this app
+    const val enableJavaScript: Boolean = true // Always true for this app
     
     /** Enable DOM storage in WebView */
-    val enableDomStorage: Boolean = true
+    const val enableDomStorage: Boolean = true
     
     /** Left edge swipe trigger width in DP */
     const val EDGE_SWIPE_WIDTH_DP = 24

@@ -55,6 +55,7 @@ import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
+@Suppress("TooManyFunctions")
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
     private val shellViewModel: ShellViewModel by viewModels()
