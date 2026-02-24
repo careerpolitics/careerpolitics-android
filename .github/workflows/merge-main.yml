@@ -1,0 +1,73 @@
+name: Merge Main Sanity
+
+on:
+  # Re-validate main branch after merge.
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sanity-build:
+    name: Main sanity build + version metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      # Deterministic CI versioning: use monotonic run number as versionCode.
+      CI_VERSION_CODE: ${{ github.run_number }}
+      CI_VERSION_NAME: 2.0.${{ github.run_number }}
+      # Inject runtime config values from GitHub Secrets.
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      PUSHER_INSTANCE_ID: ${{ secrets.PUSHER_INSTANCE_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      # Create build metadata for traceability and immutable build auditing.
+      - name: Prepare version metadata
+        run: |
+          mkdir -p build/ci
+          cat > build/ci/version-metadata.json <<EOF
+          {
+            "git_sha": "${GITHUB_SHA}",
+            "git_ref": "${GITHUB_REF}",
+            "version_code": "${CI_VERSION_CODE}",
+            "version_name": "${CI_VERSION_NAME}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_number": "${GITHUB_RUN_NUMBER}",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      # Sanity build (unsigned debug) to ensure main remains releasable.
+      - name: Sanity build
+        run: ./gradlew --no-daemon clean lint testDebugUnitTest assembleDebug
+
+      - name: Upload metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-version-metadata-${{ github.run_id }}
+          path: build/ci/version-metadata.json
+          retention-days: 30
