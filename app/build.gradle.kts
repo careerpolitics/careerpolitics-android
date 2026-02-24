@@ -279,6 +279,7 @@ dependencies {
     implementation(project(":feature:deeplink"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:notifications"))
+    implementation(project(":data:auth"))
 
     // Testing
     testImplementation(libs.junit)

@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.murari.careerpolitics.feature.auth"
+    namespace = "com.murari.careerpolitics.data.auth"
     compileSdk = 36
 
     defaultConfig {
@@ -23,11 +23,7 @@ android {
 kapt { correctErrorTypes = true }
 
 dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":data:auth"))
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.lifecycle.viewmodel)
-    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.play.services.auth)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
 }
