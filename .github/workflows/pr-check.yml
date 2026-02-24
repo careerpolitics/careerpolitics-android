@@ -1,0 +1,113 @@
+name: PR Quality Gate
+
+on:
+  # Run this workflow only for Pull Request lifecycle events.
+  # - opened: when PR is first created
+  # - synchronize: when new commits are pushed to the PR branch
+  # - reopened: when a closed PR is reopened
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Best-practice default for CI checks: read-only repository permissions.
+permissions: read-all
+
+# Ensure only one PR run per source branch is active at a time.
+# Newer commits cancel any in-progress older run for the same PR branch.
+concurrency:
+  group: pr-check-${{ github.workflow }}-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+  pr-check:
+    name: Lint, static checks, tests, and debug build
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Fetch repository source at the PR commit.
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # 2) Install Java 21 and enable Gradle dependency cache integration.
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      # 3) Install Android SDK + platform/build-tools required by AGP.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 4) Configure Gradle build caching and wrapper dependency optimizations.
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      # 5) Core sanity checks. Any failing command fails the job immediately.
+      - name: Clean project
+        run: ./gradlew clean --stacktrace
+
+      - name: Run lint
+        run: ./gradlew lint --stacktrace
+
+      # Run Detekt only when the task exists in this project.
+      - name: Run detekt (if configured)
+        shell: bash
+        run: |
+          if ./gradlew -q tasks --all | grep -qE '^detekt( |$)'; then
+            ./gradlew detekt --stacktrace
+          else
+            echo "detekt task not found; skipping."
+          fi
+
+      # Run ktlintCheck only when the task exists in this project.
+      - name: Run ktlintCheck (if configured)
+        shell: bash
+        run: |
+          if ./gradlew -q tasks --all | grep -qE '^ktlintCheck( |$)'; then
+            ./gradlew ktlintCheck --stacktrace
+          else
+            echo "ktlintCheck task not found; skipping."
+          fi
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      # 7) Upload reports and debug build outputs for diagnostics, even on failures.
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: app/build/reports/lint-results*.html
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+          retention-days: 14
