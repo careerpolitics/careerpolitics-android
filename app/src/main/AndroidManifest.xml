@@ -36,6 +36,9 @@
                 <data
                     android:scheme="https"
                     android:host="careerpolitics.com" />
+                <data
+                    android:scheme="https"
+                    android:host="www.careerpolitics.com" />
             </intent-filter>
         </activity>
 

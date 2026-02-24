@@ -26,6 +26,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
@@ -48,6 +52,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val mainActivityScope = MainScope()
 
     private lateinit var galleryLauncher: ActivityResultLauncher<Intent>
+    private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private var isGoogleSignInInProgress = false
+    private var pendingGoogleOAuthState: String? = null
     private var isSplashScreenReady = false
 
     private val requestNotificationPermissionLauncher =
@@ -78,11 +86,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 handleCustomBackPressed()
             }
 
+            initGoogleSignIn()
+            initGoogleSignInLauncher()
             setWebViewSettings()
 
             if (savedInstanceState != null) {
                 restoreState(savedInstanceState)
-            } else {
+            } else if (!handleAppLinkIntent(intent)) {
                 navigateToHome()
             }
             handleNotificationIntent(intent)
@@ -126,6 +136,90 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
             filePathCallback?.onReceiveValue(uri?.let { arrayOf(it) })
             filePathCallback = null
         }
+    }
+
+    private fun initGoogleSignIn() {
+        val clientId = AppConfig.googleWebClientId
+        if (clientId.isBlank()) {
+            Logger.w(LOG_TAG, "Google web client ID not configured. Native Google login disabled.")
+            return
+        }
+
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestIdToken(clientId)
+            .requestServerAuthCode(clientId, true)
+            .build()
+
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+    }
+
+    private fun initGoogleSignInLauncher() {
+        googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            isGoogleSignInInProgress = false
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val authCode = account.serverAuthCode
+                val idToken = account.idToken
+
+                if (authCode.isNullOrBlank() && idToken.isNullOrBlank()) {
+                    Logger.w(LOG_TAG, "Google sign-in succeeded without auth code or ID token")
+                    return@registerForActivityResult
+                }
+
+                completeNativeGoogleLogin(authCode, idToken)
+            } catch (exception: ApiException) {
+                Logger.e(LOG_TAG, "Native Google sign-in failed", exception)
+            }
+        }
+    }
+
+    private fun launchNativeGoogleSignIn(oAuthUrl: String): Boolean {
+        pendingGoogleOAuthState = oAuthUrl.toUri().getQueryParameter("state") ?: "navbar_basic"
+
+        if (!::googleSignInClient.isInitialized || !::googleSignInLauncher.isInitialized) {
+            Logger.w(LOG_TAG, "Google native sign-in is not initialized")
+            return false
+        }
+
+        if (isGoogleSignInInProgress) {
+            Logger.d(LOG_TAG, "Google sign-in already in progress")
+            return true
+        }
+
+        isGoogleSignInInProgress = true
+        googleSignInClient.signOut().addOnCompleteListener {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }
+
+        return true
+    }
+
+    private fun completeNativeGoogleLogin(authCode: String?, idToken: String?) {
+        val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
+            .trim()
+            .let { if (it.startsWith("/")) it else "/$it" }
+
+        val callbackUri = AppConfig.baseUrl.toUri().buildUpon()
+            .encodedPath(callbackPath)
+            .apply {
+                if (!authCode.isNullOrBlank()) {
+                    appendQueryParameter("code", authCode)
+                }
+                if (!idToken.isNullOrBlank()) {
+                    appendQueryParameter("id_token", idToken)
+                }
+                pendingGoogleOAuthState?.let { appendQueryParameter("state", it) }
+                appendQueryParameter("platform", "android")
+            }
+            .build()
+            .toString()
+
+        Logger.d(LOG_TAG, "Completing native Google login via callback URL")
+        binding?.webView?.loadUrl(callbackUri)
+        pendingGoogleOAuthState = null
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -207,7 +301,24 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleNotificationIntent(intent)
+
+        if (!handleAppLinkIntent(intent)) {
+            handleNotificationIntent(intent)
+        }
+    }
+
+
+    private fun handleAppLinkIntent(intent: Intent?): Boolean {
+        val deepLinkUrl = intent?.dataString ?: return false
+
+        if (!AppConfig.isValidAppUrl(deepLinkUrl)) {
+            Logger.d(LOG_TAG, "Ignoring non-app deep link: $deepLinkUrl")
+            return false
+        }
+
+        Logger.d(LOG_TAG, "Opening app link in WebView: $deepLinkUrl")
+        binding?.webView?.loadUrl(deepLinkUrl)
+        return true
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
@@ -262,9 +373,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             webView.addJavascriptInterface(webViewBridge, "Android")
 
-            webViewClient = OfflineWebViewClient(this, webView, mainActivityScope) {
-                webView.visibility = View.VISIBLE
-            }
+            webViewClient = OfflineWebViewClient(
+                this,
+                webView,
+                mainActivityScope,
+                onPageFinish = { webView.visibility = View.VISIBLE },
+                onGoogleNativeSignInRequested = { authUrl -> launchNativeGoogleSignIn(authUrl) }
+            )
 
             webView.webViewClient = webViewClient as WebViewClient
             webView.webChromeClient = CustomWebChromeClient(AppConfig.baseUrl, this)

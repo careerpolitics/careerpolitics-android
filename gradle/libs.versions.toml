@@ -20,6 +20,7 @@ exoplayer = "2.19.1"
 gson = "2.13.2"
 firebase_messaging = "25.0.1"
 push_notifications_android = "1.10.0"
+playServicesAuth = "21.3.0"
 
 eventbus = "3.3.1"
 kotlinx_coroutines = "1.10.2"
@@ -59,6 +60,7 @@ extension-mediasession = { group = "com.google.android.exoplayer", name = "exten
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebase_messaging" }
 push-notifications-android = { group = "com.pusher", name = "push-notifications-android", version.ref = "push_notifications_android" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 eventbus = { group = "org.greenrobot", name = "eventbus", version.ref = "eventbus" }
 eventbus-annotation-processor = { group = "org.greenrobot", name = "eventbus-annotation-processor", version.ref = "eventbus" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx_coroutines" }
