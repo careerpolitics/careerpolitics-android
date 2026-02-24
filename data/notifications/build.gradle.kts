@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.murari.careerpolitics.feature.notifications"
+    namespace = "com.murari.careerpolitics.data.notifications"
     compileSdk = 36
 
     defaultConfig { minSdk = 29 }
@@ -21,11 +21,8 @@ android {
 kapt { correctErrorTypes = true }
 
 dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":data:notifications"))
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.lifecycle.viewmodel)
-    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.firebase.messaging)
+    implementation(libs.push.notifications.android)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
 }

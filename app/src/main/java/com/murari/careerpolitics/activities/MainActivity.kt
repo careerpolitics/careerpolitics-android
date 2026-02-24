@@ -29,13 +29,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 
-import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityMainBinding
 import com.murari.careerpolitics.feature.deeplink.domain.ResolvedDeepLink
 import com.murari.careerpolitics.feature.deeplink.presentation.DeepLinkViewModel
 import com.murari.careerpolitics.feature.auth.presentation.AuthEffect
 import com.murari.careerpolitics.feature.auth.presentation.AuthViewModel
+import com.murari.careerpolitics.feature.notifications.domain.NotificationRegistrationError
+import com.murari.careerpolitics.feature.notifications.presentation.NotificationsEffect
+import com.murari.careerpolitics.feature.notifications.presentation.NotificationsViewModel
 import com.murari.careerpolitics.feature.shell.presentation.ShellNavigationCommand
 import com.murari.careerpolitics.feature.shell.presentation.ShellRouteSource
 import com.murari.careerpolitics.feature.shell.presentation.ShellViewModel
@@ -43,7 +45,6 @@ import com.murari.careerpolitics.util.AndroidWebViewBridge
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
 import com.murari.careerpolitics.util.network.OfflineWebViewClient
-import com.pusher.pushnotifications.PushNotifications
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -56,6 +57,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private val shellViewModel: ShellViewModel by viewModels()
     private val deepLinkViewModel: DeepLinkViewModel by viewModels()
     private val authViewModel: AuthViewModel by viewModels()
+    private val notificationsViewModel: NotificationsViewModel by viewModels()
     private lateinit var webViewClient: OfflineWebViewClient
     private val webViewBridge = AndroidWebViewBridge(this)
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
@@ -67,7 +69,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) initializePushNotifications()
+            if (isGranted) {
+                notificationsViewModel.onPermissionGranted()
+            }
         }
 
     override fun layout(): Int = R.layout.activity_main
@@ -102,6 +106,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
 
             observeShellState()
             observeAuthState()
+            observeNotificationsState()
             shellViewModel.resolveStartupRoute(
                 savedInstanceStateExists = savedInstanceState != null,
                 deepLinkUrl = resolveDeepLink(intent),
@@ -168,42 +173,14 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val permission = Manifest.permission.POST_NOTIFICATIONS
-            when {
-                ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED ->
-                    initializePushNotifications()
-
-                shouldShowRequestPermissionRationale(permission) ->
-                    requestNotificationPermissionLauncher.launch(permission)
-
-                else -> requestNotificationPermissionLauncher.launch(permission)
+            val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                notificationsViewModel.onPermissionGranted()
+            } else {
+                notificationsViewModel.onNotificationPermissionRequired()
             }
         } else {
-            initializePushNotifications()
-        }
-    }
-
-    private fun initializePushNotifications() {
-        try {
-            // Subscribe to Firebase topic using config
-            FirebaseMessaging.getInstance().subscribeToTopic(AppConfig.firebaseBroadcastTopic)
-
-            // Initialize Pusher with config-driven instance ID
-            PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
-            PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
-
-            Logger.d(LOG_TAG, "Push Notifications initialized(awaiting user auth for token registration)")
-        } catch (e: Exception) {
-            Logger.e(LOG_TAG, "Error initializing push notifications", e)
-
-            // Fallback: try to initialize without Firebase if it fails
-            try {
-                PushNotifications.start(applicationContext, AppConfig.pusherInstanceId)
-                PushNotifications.addDeviceInterest(AppConfig.pusherDeviceInterest)
-
-                Logger.d(LOG_TAG, "Push Notifications initialized (fallback)")
-            } catch (fallbackException: Exception) {
-                Logger.e(LOG_TAG, "Fallback push notification initialization failed", fallbackException)
-            }
+            notificationsViewModel.onPermissionGranted()
         }
     }
 
@@ -338,6 +315,55 @@ class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.
                 binding?.webView?.loadUrl(effect.callbackUrl)
             }
             is AuthEffect.Error -> Logger.w(LOG_TAG, effect.message)
+        }
+    }
+
+    private fun observeNotificationsState() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                notificationsViewModel.uiState.collect { state ->
+                    state.effect?.let {
+                        renderNotificationEffect(it)
+                        notificationsViewModel.consumeEffect()
+                    }
+                    state.error?.let {
+                        renderNotificationError(it)
+                        notificationsViewModel.consumeError()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun renderNotificationEffect(effect: NotificationsEffect) {
+        when (effect) {
+            NotificationsEffect.RequestPermission -> {
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+
+            NotificationsEffect.InitializePush -> {
+                notificationsViewModel.initializePushRegistration(
+                    topic = AppConfig.firebaseBroadcastTopic,
+                    instanceId = AppConfig.pusherInstanceId,
+                    interest = AppConfig.pusherDeviceInterest
+                )
+            }
+        }
+    }
+
+    private fun renderNotificationError(error: NotificationRegistrationError) {
+        when (error) {
+            is NotificationRegistrationError.Recoverable -> Logger.e(
+                LOG_TAG,
+                "Push registration recoverable failure: reason=${error.reason}, attempt=${error.attempt}",
+                error.throwable
+            )
+
+            is NotificationRegistrationError.Fatal -> Logger.e(
+                LOG_TAG,
+                "Push registration fatal failure: reason=${error.reason}",
+                error.throwable
+            )
         }
     }
 
