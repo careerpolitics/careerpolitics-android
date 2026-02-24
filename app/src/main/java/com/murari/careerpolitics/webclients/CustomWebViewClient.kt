@@ -56,13 +56,6 @@ open class CustomWebViewClient(
         view.visibility = View.VISIBLE
         onPageFinish()
 
-        if (shouldFinishNativeGoogleCallback(url)) {
-            Logger.d(LOG_TAG, "Native Google callback loaded, redirecting to app home")
-            view.loadUrl(AppConfig.baseUrl)
-            super.onPageFinished(view, url)
-            return
-        }
-
         checkAndRegisterFcmToken(view)
         super.onPageFinished(view, url)
     }
@@ -193,16 +186,6 @@ open class CustomWebViewClient(
             .launchUrl(context, Uri.parse(url))
     }
 
-
-    private fun shouldFinishNativeGoogleCallback(url: String?): Boolean {
-        val currentUrl = url ?: return false
-        val callbackPath = AppConfig.nativeGoogleLoginCallbackPath
-            .trim()
-            .let { if (it.startsWith("/")) it else "/$it" }
-
-        val uri = currentUrl.toUri()
-        return uri.host?.endsWith(AppConfig.baseDomain) == true && uri.path == callbackPath
-    }
 
     fun sendBridgeMessage(type: String, message: Map<String, Any>) {
         val json = JSONObject(message).toString()
