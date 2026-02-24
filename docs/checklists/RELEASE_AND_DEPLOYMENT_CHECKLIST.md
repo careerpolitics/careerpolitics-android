@@ -160,7 +160,7 @@ Use this runbook for every staging/release deployment.
 
 ### CI
 - Java: 21
-- Required jobs: configuration (`help/projects`), lintRelease, unit tests, debug build, release build, artifacts
+- Required jobs: configuration (`help/projects`), lintRelease, unit tests, debug build, release build, artifacts, and tag-triggered `publish-release` (GitHub Release with APK/AAB/mapping)
 
 ### Secrets
 - Pusher, OAuth, keystore credentials, optional google-services injection

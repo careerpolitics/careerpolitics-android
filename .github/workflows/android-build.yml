@@ -217,7 +217,6 @@ jobs:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
 
       - name: Prepare signing keystore
-        shell: bash
         run: |
           mkdir -p ci
           if [[ -n "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
@@ -262,3 +261,35 @@ jobs:
       - name: Cleanup signing material
         if: always()
         run: rm -f ci/release.keystore
+
+  publish-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build-release, versioning]
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release
+          path: release-artifacts
+
+      - name: Download version metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: version-metadata
+          path: release-artifacts
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release-artifacts/**/*.apk
+            release-artifacts/**/*.aab
+            release-artifacts/**/mapping.txt
+            release-artifacts/**/version-metadata.json
