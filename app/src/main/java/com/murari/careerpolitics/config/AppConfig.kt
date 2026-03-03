@@ -130,6 +130,47 @@ object AppConfig {
         return url.contains(baseDomain, ignoreCase = true)
     }
     
+
+    data class WebViewConfig(
+        val enableDebugging: Boolean,
+        val enableJavaScript: Boolean,
+        val enableDomStorage: Boolean,
+        val userAgent: String,
+        val edgeSwipeWidthDp: Int,
+        val edgeSwipeTriggerDp: Int
+    )
+
+    data class PushConfig(
+        val pusherInstanceId: String,
+        val firebaseBroadcastTopic: String,
+        val pusherDeviceInterest: String
+    )
+
+    data class AuthConfig(
+        val googleWebClientId: String,
+        val nativeGoogleLoginCallbackPath: String
+    )
+
+    val webViewConfig = WebViewConfig(
+        enableDebugging = BuildConfig.ENABLE_WEBVIEW_DEBUG,
+        enableJavaScript = true,
+        enableDomStorage = true,
+        userAgent = BuildConfig.USER_AGENT,
+        edgeSwipeWidthDp = EDGE_SWIPE_WIDTH_DP,
+        edgeSwipeTriggerDp = EDGE_SWIPE_TRIGGER_DP
+    )
+
+    val pushConfig = PushConfig(
+        pusherInstanceId = BuildConfig.PUSHER_INSTANCE_ID,
+        firebaseBroadcastTopic = BuildConfig.FIREBASE_TOPIC,
+        pusherDeviceInterest = BuildConfig.PUSHER_INTEREST
+    )
+
+    val authConfig = AuthConfig(
+        googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+        nativeGoogleLoginCallbackPath = BuildConfig.NATIVE_GOOGLE_LOGIN_CALLBACK_PATH
+    )
+
     // ============================================================================
     // Build Information
     // ============================================================================

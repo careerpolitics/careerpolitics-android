@@ -121,10 +121,6 @@ open class CustomWebViewClient(
     }
 
 
-    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-        return handleUrlOverride(view, url)
-    }
-
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         val url = request.url?.toString().orEmpty()
         return handleUrlOverride(view, url)
@@ -143,7 +139,7 @@ open class CustomWebViewClient(
             view.clearFormData()
             view.clearHistory()
             CookieManager.getInstance().apply {
-            removeAllCookies(null)
+                removeAllCookies(null)
             }
         }
 
