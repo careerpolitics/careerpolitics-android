@@ -91,37 +91,10 @@ android {
             isShrinkResources = false
 
             // Debug-specific BuildConfig fields
-            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 CareerPolitics-debug\"")
+            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 Android CareerPolitics-debug\"")
             buildConfigField("boolean", "ENABLE_LOGGING", "true")
             buildConfigField("boolean", "ENABLE_WEBVIEW_DEBUG", "true")
             buildConfigField("boolean", "ENABLE_CRASHLYTICS", "false")
-
-        }
-
-        // ====================================================================
-        // STAGING Build Type (new)
-        // ====================================================================
-        create("staging") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".staging"
-            versionNameSuffix = "-staging"
-            isDebuggable = true
-            isMinifyEnabled = true
-            isShrinkResources = true
-
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-
-            // Staging uses production-like settings but different config
-            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 CareerPolitics-staging\"")
-            buildConfigField("boolean", "ENABLE_LOGGING", "true")
-            buildConfigField("boolean", "ENABLE_WEBVIEW_DEBUG", "true")
-            buildConfigField("boolean", "ENABLE_CRASHLYTICS", "true")
-
-            // Use debug signing for staging (easier testing)
-            signingConfig = signingConfigs.getByName("debug")
 
         }
 
@@ -139,7 +112,7 @@ android {
             )
 
             // Production BuildConfig fields
-            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 CareerPolitics\"")
+            buildConfigField("String", "USER_AGENT", "\"ForemWebView/1 Android CareerPolitics\"")
             buildConfigField("boolean", "ENABLE_LOGGING", "false")
             buildConfigField("boolean", "ENABLE_WEBVIEW_DEBUG", "false")
             buildConfigField("boolean", "ENABLE_CRASHLYTICS", "true")
