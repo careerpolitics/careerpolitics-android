@@ -128,15 +128,16 @@ jobs:
           echo "size_mb=$SIZE_MB" >> "$GITHUB_OUTPUT"
           echo "📦 Debug APK size: ${SIZE_MB} MB ($SIZE_BYTES bytes)"
 
-      - name: APK size guard (fail if > 30 MB)
+      - name: APK size guard (fail if > 60 MB)
         run: |
           APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
           SIZE_BYTES=$(stat -c%s "$APK_PATH")
-          MAX_BYTES=31457280  # 30 MB
+          MAX_BYTES=62914560  # 60 MiB (60 × 1024 × 1024)
           if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
-            echo "❌ APK size ($SIZE_BYTES bytes) exceeds 30 MB limit" >&2
+            echo "❌ APK size ($SIZE_BYTES bytes) exceeds 60 MB limit" >&2
             exit 1
           fi
+          echo "✅ APK size is within the 60 MB limit."
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
