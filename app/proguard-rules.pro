@@ -81,12 +81,6 @@
 -allowaccessmodification
 -repackageclasses ''
 
-# Optimization passes (R8 handles this automatically)
--optimizationpasses 5
-
-# Don't optimize away useful code
--optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
-
 # ============================================================================
 # Debugging - Keep line numbers and source file for crash reporting
 # ============================================================================

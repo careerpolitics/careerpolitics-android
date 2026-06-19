@@ -114,7 +114,7 @@ class AudioService : LifecycleService() {
                     ongoing: Boolean
                 ) {
                     if (ongoing) startForeground(notificationId, notification)
-                    else stopForeground(false)
+                    else stopForeground(STOP_FOREGROUND_DETACH)
                 }
 
                 override fun onNotificationCancelled(notificationId: Int, dismissedByUser: Boolean) {

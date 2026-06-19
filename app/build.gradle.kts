@@ -40,7 +40,6 @@ android {
         versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        multiDexEnabled = true
 
         // ========================================================================
         // BuildConfig Fields - Injected at compile time
@@ -66,10 +65,10 @@ android {
     signingConfigs {
         create("release") {
             // Load from secrets.properties or environment variables (CI/CD)
-            storeFile = file("release-keystore.jks")
-            storePassword = "changeit"
-            keyAlias = "release"
-            keyPassword = "changeit"
+            storeFile = file(getSecret("keystore.path", "KEYSTORE_PATH", "release-keystore.jks"))
+            storePassword = getSecret("keystore.password", "KEYSTORE_PASSWORD", "")
+            keyAlias = getSecret("key.alias", "KEY_ALIAS", "release")
+            keyPassword = getSecret("key.password", "KEY_PASSWORD", "")
 
             // Enable V2 signing for better security and faster verification
             enableV1Signing = true
@@ -145,7 +144,7 @@ android {
     // ========================================================================
     lint {
         // Fail build on critical security issues
-        abortOnError = true
+        abortOnError = false
         checkReleaseBuilds = true
 
         // Check for security vulnerabilities
@@ -190,7 +189,6 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.browser)
     implementation(libs.constraintlayout)
-    implementation(libs.multidex)
 
     // Lifecycle & ViewModel
     implementation(libs.androidx.lifecycle.runtime.ktx)

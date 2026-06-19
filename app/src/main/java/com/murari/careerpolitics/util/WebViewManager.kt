@@ -1,15 +1,19 @@
 package com.murari.careerpolitics.util
 
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.media3.common.util.UnstableApi
 import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
 import com.murari.careerpolitics.util.network.OfflineWebViewClient
 import kotlinx.coroutines.CoroutineScope
+import org.json.JSONObject
 import kotlin.math.abs
 
 /**
@@ -17,6 +21,7 @@ import kotlin.math.abs
  *
  * Keeps [MainActivity] free of low-level WebView configuration details.
  */
+@OptIn(UnstableApi::class)
 class WebViewManager(
     private val webView: WebView,
     private val bridge: AndroidWebViewBridge,
@@ -51,8 +56,6 @@ class WebViewManager(
             allowContentAccess = true
             databaseEnabled = true
             cacheMode = WebSettings.LOAD_DEFAULT
-            @Suppress("DEPRECATION")
-            setRenderPriority(WebSettings.RenderPriority.HIGH)
         }
     }
 
@@ -62,6 +65,32 @@ class WebViewManager(
 
     private fun attachBridge() {
         webView.addJavascriptInterface(bridge, "AndroidBridge")
+        webView.addJavascriptInterface(ReactNativeWebViewBridge(), "ReactNativeWebView")  // ← ADD
+    }
+
+    /**
+     * Lightweight bridge for platform's sendHapticMessage.js which calls
+     * window.ReactNativeWebView.postMessage({action:'haptic',value:'medium'}).
+     */
+    private inner class ReactNativeWebViewBridge {
+        @JavascriptInterface
+        fun postMessage(json: String) {
+            try {
+                val message = JSONObject(json)
+                when (message.optString("action")) {
+                    "haptic" -> {
+                        val intensity = message.optString("value", "medium")
+                        val feedbackType = when (intensity) {
+                            "light" -> HapticFeedbackConstants.CLOCK_TICK
+                            "medium" -> HapticFeedbackConstants.VIRTUAL_KEY
+                            "heavy" -> HapticFeedbackConstants.LONG_PRESS
+                            else -> HapticFeedbackConstants.VIRTUAL_KEY
+                        }
+                        webView.post { webView.performHapticFeedback(feedbackType) }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     private fun attachClients() {

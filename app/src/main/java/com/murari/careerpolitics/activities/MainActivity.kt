@@ -25,6 +25,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.media3.common.util.UnstableApi
 
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.R
@@ -37,6 +38,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@OptIn(UnstableApi::class)
 class MainActivity : BaseActivity<ActivityMainBinding>(), CustomWebChromeClient.CustomListener {
 
     private val webViewBridge = AndroidWebViewBridge(this)
