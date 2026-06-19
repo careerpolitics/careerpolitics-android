@@ -7,6 +7,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.media3.common.util.UnstableApi
 import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.webclients.CustomWebChromeClient
 import com.murari.careerpolitics.webclients.CustomWebViewClient
@@ -20,6 +21,7 @@ import kotlin.math.abs
  *
  * Keeps [MainActivity] free of low-level WebView configuration details.
  */
+@OptIn(UnstableApi::class)
 class WebViewManager(
     private val webView: WebView,
     private val bridge: AndroidWebViewBridge,
