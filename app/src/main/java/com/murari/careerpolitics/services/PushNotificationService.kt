@@ -6,12 +6,9 @@ import android.webkit.CookieManager
 import com.google.firebase.messaging.FirebaseMessaging
 import com.murari.careerpolitics.config.AppConfig
 import com.murari.careerpolitics.util.Logger
+import com.murari.careerpolitics.util.network.ApiClient
 import kotlinx.coroutines.*
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.coroutines.resumeWithException
 
 object PushNotificationService {
@@ -20,6 +17,8 @@ object PushNotificationService {
     private const val FCM_TOKEN_ENDPOINT = "/users/devices/fcm_token"
     private const val CONNECT_TIMEOUT = 10_000
     private const val READ_TIMEOUT = 10_000
+    private const val MAX_RETRIES = 3
+    private const val INITIAL_BACKOFF_MS = 1000L
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -33,7 +32,7 @@ object PushNotificationService {
                     CookieManager.getInstance().getCookie(AppConfig.baseUrl)
 
                 if (cookies.isNullOrBlank() ||
-                    !cookies.contains("_Career_Politics_Session")
+                    !cookies.contains(AppConfig.SESSION_COOKIE_NAME)
                 ) {
                     Log.d(TAG, "User not authenticated, skipping FCM registration")
                     return@launch
@@ -42,7 +41,7 @@ object PushNotificationService {
                 val token = fetchFcmToken()
                 Log.d(TAG, "FCM token obtained: ${token.take(20)}…")
 
-                sendTokenToServer(token, cookies)
+                sendTokenWithRetry(token, cookies)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to register FCM token", e)
             }
@@ -64,67 +63,99 @@ object PushNotificationService {
         }
 
     /**
-     * Send token to backend server
+     * Send token with exponential backoff retry
      */
-    private fun sendTokenToServer(token: String, cookies: String) {
-        val url = URL("${AppConfig.baseUrl}$FCM_TOKEN_ENDPOINT")
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = CONNECT_TIMEOUT
-            readTimeout = READ_TIMEOUT
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Cookie", cookies)
-        }
-
-        try {
-            val payload = JSONObject().apply {
-                put("fcm_token", token)
-                put("app_bundle", "com.murari.careerpolitics")
-                put("platform", "android")
+    private suspend fun sendTokenWithRetry(token: String, cookies: String) {
+        var attempt = 0
+        var backoff = INITIAL_BACKOFF_MS
+        while (attempt < MAX_RETRIES) {
+            try {
+                sendTokenToServer(token, cookies)
+                return
+            } catch (e: Exception) {
+                attempt++
+                if (attempt >= MAX_RETRIES) {
+                    Log.e(TAG, "FCM registration failed after $MAX_RETRIES attempts", e)
+                    throw e
+                }
+                Log.w(TAG, "FCM registration attempt $attempt failed, retrying in ${backoff}ms")
+                delay(backoff)
+                backoff *= 2
             }
-
-            connection.outputStream.use { os ->
-                os.write(payload.toString().toByteArray(Charsets.UTF_8))
-            }
-
-            val responseCode = connection.responseCode
-            val responseBody = readResponse(connection)
-
-            if (responseCode == HttpURLConnection.HTTP_OK ||
-                responseCode == HttpURLConnection.HTTP_CREATED
-            ) {
-                Log.d(TAG, "FCM token registered successfully: $responseBody")
-            } else {
-                Log.e(
-                    TAG,
-                    "Failed to register FCM token. Code=$responseCode, Response=$responseBody"
-                )
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error sending FCM token to server", e)
-        } finally {
-            connection.disconnect()
         }
     }
 
     /**
-     * Read HTTP response safely
+     * Send token to backend server. Throws on failure for retry logic.
      */
-    private fun readResponse(connection: HttpURLConnection): String {
-        val stream = if (connection.responseCode in 200..299) {
-            connection.inputStream
-        } else {
-            connection.errorStream
+    private fun sendTokenToServer(token: String, cookies: String) {
+        val payload = JSONObject().apply {
+            put("fcm_token", token)
+            put("app_bundle", AppConfig.applicationId)
+            put("platform", "android")
         }
 
-        return stream?.let {
-            BufferedReader(InputStreamReader(it)).use { reader ->
-                reader.readText()
+        val response = ApiClient.post(
+            url = "${AppConfig.baseUrl}$FCM_TOKEN_ENDPOINT",
+            body = payload,
+            cookies = cookies,
+            connectTimeout = CONNECT_TIMEOUT,
+            readTimeout = READ_TIMEOUT
+        )
+
+        if (response.isSuccess) {
+            Log.d(TAG, "FCM token registered successfully")
+            try {
+                val deviceId = JSONObject(response.body).optInt("device_id", -1)
+                if (deviceId > 0) saveDeviceId(deviceId)
+            } catch (_: Exception) { }
+        } else {
+            throw java.io.IOException("FCM registration failed: HTTP ${response.code}")
+        }
+    }
+
+    /**
+     * Persist a pending FCM token when it refreshes while user is logged out.
+     * Will be picked up on next registerFcmToken call.
+     */
+    fun savePendingToken(context: Context, token: String) {
+        context.getSharedPreferences("push_prefs", Context.MODE_PRIVATE)
+            .edit().putString("pending_fcm_token", token).apply()
+    }
+
+    private fun saveDeviceId(deviceId: Int) {
+        try {
+            val context = com.murari.careerpolitics.activities.StarterApplication.instance
+            context?.getSharedPreferences("push_prefs", Context.MODE_PRIVATE)
+                ?.edit()?.putInt("device_id", deviceId)?.apply()
+        } catch (_: Exception) { }
+    }
+
+    /**
+     * Mark a notification as read on the backend (fire-and-forget)
+     */
+    fun markNotificationRead(context: Context, notificationId: String) {
+        serviceScope.launch {
+            try {
+                val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl).orEmpty()
+                if (cookies.isBlank()) return@launch
+
+                val payload = JSONObject().apply {
+                    put("ids", org.json.JSONArray().apply { put(notificationId) })
+                }
+
+                val response = ApiClient.post(
+                    url = "${AppConfig.baseUrl}/notifications/mark_read",
+                    body = payload,
+                    cookies = cookies,
+                    connectTimeout = CONNECT_TIMEOUT,
+                    readTimeout = READ_TIMEOUT
+                )
+                Log.d(TAG, "Mark read response: ${response.code}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error marking notification as read", e)
             }
-        } ?: ""
+        }
     }
 
     /**
@@ -135,40 +166,33 @@ object PushNotificationService {
         userId: String?,
         token: String?
     ) {
-        if (userId.isNullOrBlank() || token.isNullOrBlank()) {
-            Logger.w(TAG, "Cannot unregister device: missing userId or token")
+        val prefs = context.getSharedPreferences("push_prefs", Context.MODE_PRIVATE)
+        val deviceId = prefs.getInt("device_id", -1)
+
+        if (deviceId < 0) {
+            Logger.w(TAG, "Cannot unregister device: no stored device_id")
             return
         }
 
         serviceScope.launch {
-            var connection: HttpURLConnection? = null
-
             try {
-                val url = URL("${AppConfig.baseUrl}/users/devices/$userId")
-                connection = (url.openConnection() as HttpURLConnection).apply {
-                    requestMethod = "DELETE"
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "application/json")
-                }
-
-                val jsonPayload = JSONObject().apply {
-                    put("token", token)
+                val cookies = CookieManager.getInstance().getCookie(AppConfig.baseUrl).orEmpty()
+                val payload = JSONObject().apply {
+                    put("token", token.orEmpty())
                     put("platform", "android")
                     put("app_bundle", context.packageName)
                 }
 
-                connection.outputStream.use { os ->
-                    os.write(jsonPayload.toString().toByteArray())
-                    os.flush()
-                }
+                val response = ApiClient.delete(
+                    url = "${AppConfig.baseUrl}/users/devices/$deviceId",
+                    body = payload,
+                    cookies = cookies
+                )
 
-                Logger.d(TAG, "Device unregistration response: ${connection.responseCode}")
-
+                Logger.d(TAG, "Device unregistration response: ${response.code}")
+                prefs.edit().remove("device_id").apply()
             } catch (e: Exception) {
                 Logger.e(TAG, "Error unregistering device", e)
-            } finally {
-                connection?.disconnect()
             }
         }
     }

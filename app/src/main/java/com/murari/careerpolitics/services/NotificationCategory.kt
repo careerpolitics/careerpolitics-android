@@ -14,6 +14,8 @@ enum class NotificationCategory(val channelId: String, val channelName: String) 
     FOLLOWER("followers", "Followers"),
     ACHIEVEMENT("achievements", "Achievements"),
     MILESTONE("milestones", "Milestones"),
+    COMMENT_THREAD("comment_threads", "Comment Threads"),
+    MODERATION("moderation","Moderation"),
     DEFAULT("default", "Default");
 
     companion object {
@@ -29,6 +31,8 @@ enum class NotificationCategory(val channelId: String, val channelName: String) 
                 "follower","followers" -> FOLLOWER
                 "achievement","achievements" -> ACHIEVEMENT
                 "milestone","milestones" -> MILESTONE
+                "comment_thread","comment_threads" -> COMMENT_THREAD
+                "moderation" -> MODERATION
                 else -> DEFAULT
             }
         }
@@ -112,7 +116,8 @@ data class NotificationData(
     val groupKey: String?,
     val color: String?,
     val actions: List<NotificationAction>,
-    val url: String?
+    val url: String?,
+    val notificationId: String?
 ) {
     companion object {
 
@@ -134,6 +139,7 @@ data class NotificationData(
             val icon = data["icon"]
             val color = data["color"]
             val url = data["url"]
+            val notificationId = data["notification_id"]
 
             val timestamp = data["timestamp"]?.toLongOrNull()
                 ?: System.currentTimeMillis()
@@ -210,7 +216,8 @@ data class NotificationData(
                 groupKey = groupKey,
                 color = color,
                 actions = actions,
-                url = url
+                url = url,
+                notificationId = notificationId
             )
         }
     }

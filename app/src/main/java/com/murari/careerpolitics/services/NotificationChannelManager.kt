@@ -52,6 +52,16 @@ class NotificationChannelManager(private val context: Context) {
                 importance = NotificationManager.IMPORTANCE_DEFAULT
             ),
             createChannel(
+                NotificationCategory.COMMENT_THREAD,
+                "Get notified about comment threads you're in",
+                importance = NotificationManager.IMPORTANCE_HIGH
+            ),
+            createChannel(
+                NotificationCategory.MODERATION,
+                "Get notified about moderation actions",
+                importance = NotificationManager.IMPORTANCE_DEFAULT
+            ),
+            createChannel(
                 NotificationCategory.DEFAULT,
                 "Get notifications from CareerPolitics",
                 importance = NotificationManager.IMPORTANCE_DEFAULT

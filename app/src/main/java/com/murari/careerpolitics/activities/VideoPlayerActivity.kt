@@ -2,13 +2,8 @@ package com.murari.careerpolitics.activities
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import androidx.annotation.MainThread
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.source.hls.HlsMediaSource
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.databinding.ActivityVideoPlayerBinding
 import com.murari.careerpolitics.events.VideoPlayerPauseEvent
@@ -16,6 +11,11 @@ import com.murari.careerpolitics.events.VideoPlayerTickEvent
 import org.greenrobot.eventbus.EventBus
 import java.util.*
 import androidx.core.net.toUri
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
 
 class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
 
@@ -39,6 +39,7 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
         startTimer()
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     private fun initializePlayer(url: String, seekToSeconds: Long) {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("CareerPolitics-Android")

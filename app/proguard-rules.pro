@@ -31,8 +31,8 @@
 }
 -keep enum org.greenrobot.eventbus.ThreadMode { *; }
 
-# Keep ExoPlayer classes
--keep class com.google.android.exoplayer2.** { *; }
+# Keep Media3 classes
+-keep class androidx.media3.** { *; }
 
 # Keep Firebase classes
 -keep class com.google.firebase.** { *; }
@@ -153,12 +153,6 @@
 -keep class com.murari.careerpolitics.BuildConfig { *; }
 -keep class com.murari.careerpolitics.config.AppConfig { *; }
 -keep class com.murari.careerpolitics.config.Environment { *; }
-
-# ============================================================================
-# Pusher Push Notifications
-# ============================================================================
--keep class com.pusher.pushnotifications.** { *; }
--dontwarn com.pusher.pushnotifications.**
 
 # ============================================================================
 # Compose (if issues arise)

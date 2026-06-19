@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import androidx.core.graphics.toColorInt
+import androidx.privacysandbox.ads.adservices.adid.AdId
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.activities.MainActivity
 
@@ -49,7 +50,8 @@ class NotificationBuilderFactory(
         // ----------------------------------------------------
         builder.priority = when (data.category) {
             NotificationCategory.COMMENT,
-            NotificationCategory.MENTION ->
+            NotificationCategory.MENTION,
+            NotificationCategory.COMMENT_THREAD ->
                 NotificationCompat.PRIORITY_HIGH
             else ->
                 NotificationCompat.PRIORITY_DEFAULT
@@ -66,7 +68,7 @@ class NotificationBuilderFactory(
         // Content intent (deep link)
         // ----------------------------------------------------
         data.url?.let { url ->
-            builder.setContentIntent(createContentIntent(url, data.notificationType))
+            builder.setContentIntent(createContentIntent(url, data.notificationType, data.notificationId))
         }
 
         // ----------------------------------------------------
@@ -89,7 +91,8 @@ class NotificationBuilderFactory(
         builder.setCategory(
             when (data.category) {
                 NotificationCategory.COMMENT,
-                NotificationCategory.MENTION ->
+                NotificationCategory.MENTION,
+                NotificationCategory.COMMENT_THREAD ->
                     NotificationCompat.CATEGORY_MESSAGE
 
                 NotificationCategory.REACTION,
@@ -99,6 +102,9 @@ class NotificationBuilderFactory(
                 NotificationCategory.ACHIEVEMENT,
                 NotificationCategory.MILESTONE ->
                     NotificationCompat.CATEGORY_STATUS
+
+                NotificationCategory.MODERATION ->
+                    NotificationCompat.CATEGORY_SYSTEM
 
                 else ->
                     NotificationCompat.CATEGORY_MESSAGE
@@ -114,13 +120,15 @@ class NotificationBuilderFactory(
 
     private fun createContentIntent(
         url: String,
-        notificationType: String
+        notificationType: String,
+        notificationId: String? = null
     ): PendingIntent {
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("url", url)
             putExtra("notification_type", notificationType)
+            notificationId?.let { putExtra("notification_id", it) }
         }
 
         return PendingIntent.getActivity(

@@ -8,20 +8,24 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
-import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.session.MediaSessionCompat
 import androidx.annotation.MainThread
 import androidx.lifecycle.LifecycleService
-import com.google.android.exoplayer2.*
-import com.google.android.exoplayer2.audio.AudioAttributes
-import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.ui.PlayerNotificationManager
-import com.google.android.exoplayer2.upstream.DefaultDataSource
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.session.MediaSession
+import androidx.media3.ui.PlayerNotificationManager
 import com.murari.careerpolitics.R
 
+@UnstableApi
 class AudioService : LifecycleService() {
 
     inner class AudioServiceBinder : Binder() {
@@ -38,7 +42,7 @@ class AudioService : LifecycleService() {
 
         const val ARG_PODCAST_URL = "ARG_PODCAST_URL"
         const val PLAYBACK_CHANNEL_ID = "playback_channel"
-        const val MEDIA_SESSION_TAG = "DEV Community Session"
+        const val MEDIA_SESSION_TAG = "Career Politics Session"
         const val NOTIFICATION_ID = 1
         const val SKIP_MS = 15000
     }
@@ -50,7 +54,7 @@ class AudioService : LifecycleService() {
 
     private var player: ExoPlayer? = null
     private var playerNotificationManager: PlayerNotificationManager? = null
-    private var mediaSession: MediaSessionCompat? = null
+    private var mediaSession: MediaSession? = null
 
     private val binder = AudioServiceBinder()
 
@@ -124,14 +128,9 @@ class AudioService : LifecycleService() {
     }
 
     private fun setupMediaSession() {
-        mediaSession = MediaSessionCompat(this, MEDIA_SESSION_TAG).apply {
-            val metadata = MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, episodeName)
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, podcastName)
-                .build()
-            setMetadata(metadata)
-        }
-        playerNotificationManager?.setMediaSessionToken(mediaSession!!.sessionToken)
+        mediaSession = MediaSession.Builder(this, player!!)
+            .build()
+        playerNotificationManager?.setMediaSessionToken(mediaSession!!.platformToken)
     }
 
     @MainThread
@@ -163,7 +162,7 @@ class AudioService : LifecycleService() {
 
     @MainThread
     fun rate(rate: String?) {
-        rate?.toFloatOrNull()?.let { player?.setPlaybackParameters(PlaybackParameters(it)) }
+        rate?.toFloatOrNull()?.let { player?.playbackParameters= PlaybackParameters(it) }
     }
 
     @MainThread
@@ -178,6 +177,16 @@ class AudioService : LifecycleService() {
         episodeName = epName
         podcastName = pdName
         imageUrl = url
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaSession?.release()
+        mediaSession = null
+        playerNotificationManager?.setPlayer(null)
+        playerNotificationManager = null
+        player?.release()
+        player = null
     }
 
     @MainThread
