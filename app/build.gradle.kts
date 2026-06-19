@@ -22,13 +22,10 @@ if (secretsPropertiesFile.exists()) {
 }
 
 // Helper function to get secret or fallback to environment variable or default
-fun getSecret(propName: String, envName: String, default: String): String {
-    val propsFile = rootProject.file("app/secrets.properties")
-    if (propsFile.exists()) {
-        val props = java.util.Properties().apply { propsFile.inputStream().use { load(it) } }
-        props.getProperty(propName)?.takeIf { it.isNotBlank() }?.let { return it }
-    }
-    return System.getenv(envName)?.takeIf { it.isNotBlank() } ?: default
+fun getSecret(key: String, envVar: String? = null, default: String = ""): String {
+    return secretsProperties.getProperty(key)
+        ?: (envVar?.let { System.getenv(it) })
+        ?: default
 }
 
 android {
