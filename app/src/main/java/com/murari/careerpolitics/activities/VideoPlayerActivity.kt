@@ -16,6 +16,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import com.murari.careerpolitics.config.AppConfig
 
 class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
 
@@ -42,7 +43,7 @@ class VideoPlayerActivity : BaseActivity<ActivityVideoPlayerBinding>() {
     @androidx.annotation.OptIn(UnstableApi::class)
     private fun initializePlayer(url: String, seekToSeconds: Long) {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("CareerPolitics-Android")
+            .setUserAgent(AppConfig.userAgent)
 
         val mediaSource = HlsMediaSource.Factory(dataSourceFactory)
             .createMediaSource(MediaItem.fromUri(url.toUri()))

@@ -22,10 +22,13 @@ if (secretsPropertiesFile.exists()) {
 }
 
 // Helper function to get secret or fallback to environment variable or default
-fun getSecret(key: String, envVar: String? = null, default: String = ""): String {
-    return secretsProperties.getProperty(key)
-        ?: (envVar?.let { System.getenv(it) })
-        ?: default
+fun getSecret(propName: String, envName: String, default: String): String {
+    val propsFile = rootProject.file("app/secrets.properties")
+    if (propsFile.exists()) {
+        val props = java.util.Properties().apply { propsFile.inputStream().use { load(it) } }
+        props.getProperty(propName)?.takeIf { it.isNotBlank() }?.let { return it }
+    }
+    return System.getenv(envName)?.takeIf { it.isNotBlank() } ?: default
 }
 
 android {
@@ -40,7 +43,6 @@ android {
         versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        multiDexEnabled = true
 
         // ========================================================================
         // BuildConfig Fields - Injected at compile time
@@ -66,10 +68,10 @@ android {
     signingConfigs {
         create("release") {
             // Load from secrets.properties or environment variables (CI/CD)
-            storeFile = file("release-keystore.jks")
-            storePassword = "changeit"
-            keyAlias = "release"
-            keyPassword = "changeit"
+            storeFile = file(getSecret("keystore.path", "KEYSTORE_PATH", "release-keystore.jks"))
+            storePassword = getSecret("keystore.password", "KEYSTORE_PASSWORD", "")
+            keyAlias = getSecret("key.alias", "KEY_ALIAS", "release")
+            keyPassword = getSecret("key.password", "KEY_PASSWORD", "")
 
             // Enable V2 signing for better security and faster verification
             enableV1Signing = true
@@ -190,7 +192,6 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.browser)
     implementation(libs.constraintlayout)
-    implementation(libs.multidex)
 
     // Lifecycle & ViewModel
     implementation(libs.androidx.lifecycle.runtime.ktx)

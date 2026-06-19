@@ -50,6 +50,7 @@ open class CustomWebViewClient(
     private var registeredUserNotifications = false
     private var networkWatcher: NetworkWatcher? = null
     private var registeredFcmToken = false
+    private var networkWatcherRegistered = false
 
     override fun onPageFinished(view: WebView, url: String?) {
         view.visibility = View.VISIBLE
@@ -191,22 +192,21 @@ open class CustomWebViewClient(
 
     private fun registerNetworkWatcher() {
         if (networkWatcher == null) {
-            networkWatcher = NetworkWatcher(coroutineScope).also {
-                context.registerReceiver(it, NetworkWatcher.intentFilter)
-            }
+            networkWatcher = NetworkWatcher(context)
+        }
+        if (!networkWatcherRegistered) {
+            networkWatcher?.register()
+            networkWatcherRegistered = true
         }
     }
 
     private fun unregisterNetworkWatcher() {
-        try {
-            networkWatcher?.let {
-                context.unregisterReceiver(it)
-                networkWatcher = null
-            }
-        } catch (e: IllegalArgumentException) {
-            Logger.d(LOG_TAG, "Network watcher receiver already unregistered")
+        if (networkWatcherRegistered) {
+            networkWatcher?.unregister()
+            networkWatcherRegistered = false
         }
     }
+
 
     @Subscribe(threadMode = ThreadMode.BACKGROUND)
     fun onNetworkStatusEvent(event: NetworkStatusEvent) {

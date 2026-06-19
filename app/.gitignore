@@ -19,3 +19,7 @@ keystore/
 
 # Local development configuration
 local.defaults.properties
+logfile.txt
+app/secrets.properties
+*.jks
+*.keystore

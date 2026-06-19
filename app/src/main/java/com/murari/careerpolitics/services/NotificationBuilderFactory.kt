@@ -6,7 +6,6 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import androidx.core.graphics.toColorInt
-import androidx.privacysandbox.ads.adservices.adid.AdId
 import com.murari.careerpolitics.R
 import com.murari.careerpolitics.activities.MainActivity
 
@@ -198,7 +197,7 @@ class NotificationBuilderFactory(
             // ------------------------------------
             // View / Navigate action
             // ------------------------------------
-            "view", "navigate" -> {
+            "view", "navigate", "navigation" -> {
                 data.url?.let { url ->
                     val viewIntent = Intent(context, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
