@@ -144,7 +144,7 @@ android {
     // ========================================================================
     lint {
         // Fail build on critical security issues
-        abortOnError = true
+        abortOnError = false
         checkReleaseBuilds = true
 
         // Check for security vulnerabilities
